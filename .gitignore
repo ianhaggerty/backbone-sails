@@ -1,0 +1,10 @@
+# Created by .gitignore support plugin (hsz.mobi)
+.sass-cache
+.tmp
+.idea
+_ignoreme
+api/responses
+assets/images
+assets/styles
+assets/templates
+node_modules
