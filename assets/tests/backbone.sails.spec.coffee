@@ -12,8 +12,6 @@ Model = Sails.Model
 Collection = Sails.Collection
 
 Sails.configure
-	delegateSync: false
-	logLevel: 6
 	attempts: 5
 	interval: 500
 
@@ -30,10 +28,11 @@ modelTwo = undefined
 coll = new TestCollection()
 coll.on "all", -> console.log "collection says...", arguments
 coll.sort "createdAt  DESC"
-coll.subscribe()
+coll.fetch()
 .done ->
 	modelOne = coll.models[0]
 	modelTwo = coll.models[1]
 	modelOne?.on "all", -> console.log "modelOne says..", arguments
 	modelTwo?.on "all", -> console.log "modelTwo says..", arguments
 
+Sails.on "all", -> console.log "Sails says...", arguments
