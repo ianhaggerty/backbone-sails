@@ -116,7 +116,10 @@
 		connectToSocket: (socketClient)->
 
 	# A boolean indicating whether to subscribe instances synced over jqXHR, when available
-		subscribe: true
+		subscribe: false
+
+	# A boolean indicating whether to send all requests over web sockets.
+		socketSync: true
 
 # Generic function used to ascertian whether the the number of attempts for this particular
 # promise has exceeded. Used frequently in the 'looping defer pattern'.
@@ -128,6 +131,12 @@
 		if defer.attempts <= maxAttempts
 			return false
 		return true
+# Utility method to map the result of one promise onto another
+	chainPromise = (from, to) ->
+		from.done ->
+			to.resolve.apply to, arguments
+		.fail ->
+			to.reject.apply to, arguments
 
 # References the socket client, when it is found. The socket client is typically
 # located at the io.socket global exposed by sails.io.js.
@@ -255,16 +264,18 @@
 
 				# todo - possible revision of 2nd argument, see http://api.jquery.com/jQuery.ajax/
 				options.error? jwres, jwres.statusCode, jwres.body # triggers 'error'
-				defer.reject jwres, jwres.statusCode, jwres.body
 
 				instance.trigger "#{prefix}socketerror", jwres, jwres.statusCode, jwres.body
+
+				defer.reject jwres, jwres.statusCode, jwres.body
 			else
 				options.success? res, jwres.statusCode, jwres # triggers 'sync'
-				defer.resolve res, jwres.statusCode, jwres
 
 				instance.trigger "#{prefix}socketsync", instance, res, options
 
-				# register & subscribe instances before triggering socketsync
+				defer.resolve res, jwres.statusCode, jwres
+
+				# register & subscribe instances
 				if isCollection instance
 					registeringCollection(instance).done ->
 						subscribingCollection(instance)
@@ -276,7 +287,6 @@
 				else
 					registeringModel(instance).done ->
 						subscribingModel(instance)
-
 
 
 		instance.trigger "request", instance, defer.promise(), options
@@ -296,16 +306,12 @@
 			previousUrl = augmentUrl method, instance
 			
 			# map from backbone verbs to sails.io.js verbs
-			sendSocketRequest(method, instance, options).done (res, statusCode, jwres)->
-				result.resolve res, statusCode, jwres
+			chainPromise sendSocketRequest(method, instance, options), result
 
 			# restore the original url immediately
 			instance.url = previousUrl
 
 		result
-
-# Grab a reference to the original Backbone.sync (assuming it's not been tampered with)
-	originalSync = Backbone.sync
 
 # Promises a request over jqXHR, this delegates to Backbone.sync
 	sendingAjaxRequest = (method, instance, options)->
@@ -314,7 +320,7 @@
 		previousUrl = augmentUrl method, instance
 
 		# sync
-		result = originalSync.apply instance, arguments
+		result = instance.apply instance, arguments
 
 		# restore url immediately
 		instance.url = previousUrl
@@ -592,6 +598,7 @@
 				aggregator = models[modelName][model.id]
 				prefix = Sails.config.eventPrefix
 
+				# todo - coerce to associated model
 				model.listenTo aggregator, "addedTo", (e)->
 					model.trigger "#{prefix}addedTo", model, e
 					model.trigger "#{prefix}addedTo:#{e.attribute}", model, e.id, e
@@ -631,6 +638,40 @@
 				error instance, resp, options
 				instance.trigger 'error', instance, resp, options
 
+# Used internally from model and collection class to attempt a request
+# over sockets, delegating to jqXHR and resyncing over sockets as
+# configured through `socketSync` and `subscribe`
+	attemptRequest = (request)->
+		method =          request.method
+		instance =        request.instance
+		options =         request.options
+		delegateSuccess = request.delegateSuccess
+
+		if socketConnected()
+			# send over sockets
+			result = sendingSocketRequest method, instance, options
+		else if (!Sails.config.socketSync && options.socketSync != true) || options.socketSync == false
+			# delegate to jqXHR
+			result = sendingAjaxRequest method, instance, options
+
+			# queue up a read socket request to subscribe the model server side
+			if options.subscribe == true || (options.subscribe != false && Sails.config.subscribe == true)
+				options = _.clone(options)
+
+				options.success = delegateSuccess
+
+			resolvingRequest
+				method: 'read'
+				instance: model
+				options: options
+		else
+			# wait for socket connect
+			result = $.Deferred()
+			socketConnecting().done ->
+				chainPromise sendingSocketRequest(method, model, options), result
+
+		result
+
 # The all important Model class
 	class Sails.Model extends Backbone.Model
 		_sails:
@@ -650,30 +691,20 @@
 					return false
 				if success
 					success model, resp, options
-
 				model.trigger 'sync', model, resp, options
+
 			wrapError(this, options)
 
-			if socketConnected()
-				# fetch via sockets
-				result = sendingSocketRequest 'read', model, options
-			else
-				result = sendingAjaxRequest 'read', model, options # fetch via jqXHR
+			delegateSuccess = (resp) ->
+				if !model.set model.parse(resp, options), options
+					return false
+				model.trigger 'sync', model, resp, options
 
-				# queue up a read socket request to subscribe server side
-				if (options.subscribe == true) || (options.subscribe != false && Sails.config.subscribe == true)
-					options = _.clone(options)
-
-					options.success = (resp) ->
-						if !model.set model.parse(resp, options), options
-							return false
-
-					resolvingRequest
-						method: 'read'
-						instance: model
-						options: options
-
-			result
+			attemptRequest
+				method: 'read'
+				instance: model
+				options: options
+				delegateSuccess: delegateSuccess
 
 		save: (key, val, options) ->
 			attributes = @attributes
@@ -718,34 +749,60 @@
 			method = if @isNew() then 'create' else (if options.patch then 'patch' else 'update')
 			if method == 'patch' then options.attrs = attrs
 
-			if socketConnected()
-				result = sendingSocketRequest method, this, options
-			else
-				# delegate to jqXHR
-				result = sendingAjaxRequest method, this, options
+			delegateSuccess = (resp) ->
+				# same as above, but no callback to user supplied 'success'
+				model.attributes = attributes
+				serverAttrs = model.parse resp, options
+				if options.wait then serverAttrs = _.extend attrs || {}, serverAttrs
+				if _.isObject serverAttrs && !model.set serverAttrs, options
+					return false
+				model.trigger 'sync', model, resp, options
 
-				# queue up a read socket request to subscribe the model server side
-				if options.subscribe == true || (options.subscribe != false && Sails.config.subscribe == true)
-					options = _.clone(options)
-
-					options.success = (resp) ->
-						# ensure the attributes are restored during synchronous saves
-						model.attributes = attributes
-						serverAttrs = model.parse resp, options
-						if options.wait then serverAttrs = _.extend attrs || {}, serverAttrs
-						if _.isObject serverAttrs && !model.set serverAttrs, options
-							return false
-						model.trigger 'sync', model, resp, options
-
-					resolvingRequest
-						method: 'read'
-						instance: model
-						options: options
+			result = attemptRequest
+				method: method
+				instance: model
+				options: options
+				delegateSuccess: delegateSuccess
 
 			# restore attributes
 			if attrs && options.wait then @attributes = attributes
 
 			result
+
+	# Destroy this model on the server if it was already persisted.
+	#	Optimistically removes the model from its collection, if it has one.
+	#	If `wait: true` is passed, waits for the server to respond before removal.
+		destroy: (options) ->
+			options = if options then _.clone(options) else {}
+			model = this;
+			success = options.success;
+
+			destroy = ->
+				model.trigger 'destroy', model, model.collection, options
+
+			options.success = (resp) ->
+				if (options.wait || model.isNew()) then destroy()
+				if (success) then success(model, resp, options);
+				if (!model.isNew()) then model.trigger('sync', model, resp, options)
+
+
+			if (this.isNew())
+				options.success()
+				return false
+
+			wrapError(this, options);
+
+			# don't subscribe
+			options.subscribe = false
+
+			result = attemptRequest
+				method: 'delete'
+				instance: this
+				options: options
+
+			if (!options.wait) then destroy()
+
+			return result
 
 		constructor: ->
 			super
@@ -771,25 +828,15 @@
 
 			wrapError(@, options);
 
-			if socketConnected()
-				result = sendingSocketRequest 'read', @, options
-			else
-				result = sendingAjaxRequest 'read', @, options
+			delegateSuccess = (resp) ->
+				collection.set(resp, options)
+				collection.trigger 'sync', collection, resp, options
 
-				# queue up a socket request to subscribe the collection server side
-				if options.subscribe == true || (options.subscribe != false && Sails.config.subscribe == true)
-					options = _.clone(options)
-
-					options.success = (resp) ->
-						collection.set(resp, options)
-						collection.trigger 'sync', collection, resp, options
-
-					resolvingRequest
-						method: 'read'
-						instance: this
-						options: options
-
-			result
+			attemptRequest
+				method: 'read'
+				instance: this
+				options: options
+				delegateSuccess: delegateSuccess
 
 		where: (criteria) ->
 			@_sails.where = criteria
