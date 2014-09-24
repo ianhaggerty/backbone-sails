@@ -280,14 +280,15 @@ module.exports = {
 	 * @param  {Request} req
 	 */
 	parseSort: function (req) {
-		var query = req.param('sort') || req.options.sort || undefined;
+		var sort = req.params.all().sort || undefined;
 
-		var sort = tryToParseJSON(query);
+		if (_.isString(sort)) {
+			sort = tryToParseJSON(sort)
+		} else {
+			sort = req.options.sort
+		}
 
-		if (sort instanceof Error)
-			sort = query;
-
-		return query;
+		return sort;
 	},
 
   /**

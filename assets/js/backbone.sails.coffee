@@ -668,7 +668,7 @@
 			# wait for socket connect
 			result = $.Deferred()
 			socketConnecting().done ->
-				chainPromise sendingSocketRequest(method, model, options), result
+				chainPromise sendingSocketRequest(method, instance, options), result
 
 		result
 
