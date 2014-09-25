@@ -4,8 +4,6 @@
 
   copyright: Ian Haggerty
   author: Ian Haggerty
-  created: 20/09/2014
-  updated: 20/09/2014
   email: iahag001@yahoo.co.uk
   github: https://github.com/iahag001/Backbone.Sails
 
@@ -15,21 +13,6 @@
     underscore: https://github.com/lodash/lodash/
     sails.io.js: https://github.com/balderdashy/sails.io.js
   ]
-
-  Backbone.Sails is a library for negotiating 'resourceful' socket events
-  from a SailsJS backend into the Backbone ecosystem. It has it's own
-  Backbone.Sails.Model class, as well as a Backbone.Sails.Collection class
-
-  It also has a sync method you can leverage, at Backbone.Sails.sync. This sync
-  method will attempt to sync over sockets (assuming default sailsJs routing
-  conventions for models), and will delegate to jQuery.Ajax (Backbone.sync)
-  if socket's aren't available.
-
-  Syncing over Ajax doesn't subscribe the client socket to that Model or the
-  instances synced. Backbone.Sails.sync has an intelligent delegation method which
-  make's sure all Ajax requests are followed up the corresponding socket
-  request, so that the socket is registered to the Model/instances synced
-  over Ajax. This ensures your app stay's realtime whenever possible.
 ###
 
 
@@ -249,12 +232,11 @@
 		defer = new $.Deferred()
 
 		prefix = Sails.config.eventPrefix
-		if !options.url
-			url = _.result instance, 'url' || urlError
 
+		url = options.url || _.result instance, 'url' || urlError
 
 		if isCollection instance
-			payload = undefined
+			payload = undefined # all info in filter query parameters
 		else
 			payload = instance.attributes
 
@@ -320,7 +302,7 @@
 		previousUrl = augmentUrl method, instance
 
 		# sync
-		result = instance.apply instance, arguments
+		result = instance.sync method, instance, options
 
 		# restore url immediately
 		instance.url = previousUrl
@@ -361,7 +343,9 @@
 
 # Augments the url for sync requests - according to the instance type
 	augmentUrl = (method, instance) ->
-		previousUrl = _.result instance, 'url'
+		# previousUrl = _.result instance, 'url'
+
+		previousUrl = instance.url
 
 		if isCollection(instance) && isSails(instance) && method == "read"
 			url = _.result instance, 'url'
@@ -414,7 +398,11 @@
 
 # Tests whether an instance is a collection
 	isCollection = (instance) ->
-		typeof instance.cid == "undefined"
+		instance instanceof Backbone.Collection
+
+# Test whether an instance is a model
+	isModel = (instance) ->
+		instance instanceof Backbone.Model
 
 # Tests whether instance is a Backbone.Sails.Collection or a Backbone.Sails.Model
 	isSails = (instance) ->
@@ -465,7 +453,7 @@
 		# if we got all the way here, the collection was registered through another object
 		(coll._sails.registered = true)
 
-# Promises registering a collection
+# Promises registering a collection resource
 	registeringCollection = (coll, defer = $.Deferred())->
 
 		if collectionRegistered(coll)
@@ -477,7 +465,7 @@
 
 		defer.promise()
 
-# Register's an event aggregator for a model instance, if necessary
+# Register's an event aggregator for a model resource, if necessary
 	registerModel = (model) ->
 		
 		if _.isUndefined model.id # not yet synced, cannot register without id
@@ -598,7 +586,7 @@
 				aggregator = models[modelName][model.id]
 				prefix = Sails.config.eventPrefix
 
-				# todo - coerce to associated model
+				# todo - coerce to associated model?
 				model.listenTo aggregator, "addedTo", (e)->
 					model.trigger "#{prefix}addedTo", model, e
 					model.trigger "#{prefix}addedTo:#{e.attribute}", model, e.id, e
@@ -653,17 +641,18 @@
 		else if (!Sails.config.socketSync && options.socketSync != true) || options.socketSync == false
 			# delegate to jqXHR
 			result = sendingAjaxRequest method, instance, options
+			.done ->
+				# queue up a read socket request to subscribe the model server side
+				if options.subscribe == true || (options.subscribe != false && Sails.config.subscribe == true)
+					options = _.clone(options)
 
-			# queue up a read socket request to subscribe the model server side
-			if options.subscribe == true || (options.subscribe != false && Sails.config.subscribe == true)
-				options = _.clone(options)
+					options.success = delegateSuccess
 
-				options.success = delegateSuccess
+				resolvingRequest
+					method: 'read'
+					instance: instance
+					options: options
 
-			resolvingRequest
-				method: 'read'
-				instance: model
-				options: options
 		else
 			# wait for socket connect
 			result = $.Deferred()
@@ -672,10 +661,49 @@
 
 		result
 
+# $.ajax expects the model resource to be located by id in url
+# however delete requests to associations require an id parameter
+# in the body, this function wraps the options to do just that
+	wrapDelete = (model, options)->
+		payload = {}
+		payload[model.idAttribute || "id"] = model.id
+		_.assign options,
+			# necessary for Ajax delegation
+			contentType: 'application/json'
+			data: JSON.stringify(payload)
+
 # The all important Model class
 	class Sails.Model extends Backbone.Model
-		_sails:
-			synced: false
+
+		# DRY's up the add remove function's
+		_addRemove: (save, key, model, options)->
+			if !isModel model
+				Collection = _.result(@associations, key)
+				collection = new Collection()
+
+				Model =  collection.model || Sails.Model
+
+				# collection used to compute url property if urlRoot is undefined
+				model = new Model model, { collection: collection }
+
+			options = _.assign {}, options, { url: _.result(@, 'url') + '/' + key }
+
+			if save
+				model.save {}, options
+			else
+				model.destroy options
+
+		# 'adds to' an association collection
+		addTo: (key, model, options)->
+			@_addRemove true, key, model, options
+
+		# 'removes from' an association collection
+		removeFrom: (key, model, options = {})->
+			options = wrapDelete model, options
+			@_addRemove false, key, model, options
+
+		toOne: (key, model) ->
+			0
 
 		fetch: (options) ->
 			options = if options then _.clone(options) else {}
@@ -859,6 +887,8 @@
 			@_sails.limit = limit
 			@
 
+		model: Sails.Model
+
 		constructor: ->
 			super
 
@@ -870,13 +900,49 @@
 				subscribed: false
 				registered: false
 
-			# Needs a url
-			url = _.result(this, 'url')
-			if _.isUndefined(url) then urlError()
+# A very special function. This wraps an existing Collection constructor
+# and returns a correspnding 'associated' collection constructor. The
+# associated collection is constructed with a model instance and a key.
+# This is different from the Backbone convention.
+	Sails.associated = (Collection)->
+		PUT = Collection.prototype.url
 
-			# Setup an intelligent default model
-			@model = Sails.Model.extend
-				urlRoot: url
+		class AssociatedModel extends Collection.prototype.model
+			save: (key, val, options)->
+				if @isNew() # POST /model/id/assoc
+					super
+				else
+					url = PUT + '/' + @id
+					# glue code from backbone
+					if _.isNull key || _.isObject key
+						options = _.assign {}, val, { url: url }
+						super key, options
+					else
+						options = _.assign {}, options, { url: url }
+						# PUT /associatedmodel/associd
+						super key, val, options
+
+			destroy: (options) ->
+				# DELETE to /model/id/assoc
+				options = wrapDelete @, options
+				super options
+
+		class AssociatedCollection extends Collection
+			model: AssociatedModel
+
+			constructor: (key, model, options) ->
+				@url = _.result(model, 'url') + '/' + key
+
+				# forward addedTo and removedFrom events
+				prefix = Sails.config.eventPrefix
+				model.on "#{prefix}addedTo:#{key}", ->
+					@trigger "#{prefix}addedTo", arguments
+				model.on "#{prefix}removedFrom:#{key}", ->
+					@trigger "#{prefix}removedFrom", arguments
+
+				super model.attributes[key], options
+
+		AssociatedCollection
 
 	Backbone.Sails = Sails
 )(Backbone, $, _)

@@ -181,9 +181,22 @@ module.exports = function addToCollection (req, res) {
         if (err) return res.serverError(err);
         if (!matchingRecord) return res.serverError();
         if (!matchingRecord[relation]) return res.serverError();
-        return res.ok(matchingRecord);
+        // return res.ok(matchingRecord); todo CHANGED result here
+	      // INSTEAD return added record, just like the populate request
+	      pkAttr = capitaliseFirstLetter(childPkAttr)
+	      ChildModel["findOneBy"+pkAttr](async_data.actualChildPkValue).exec(function(err, childRecord) {
+		      if (err) return res.serverError(err);
+		      if (!childRecord) return res.serverError();
+
+		      res.ok(childRecord)
+	      })
       });
     });
 
   }); // </async.auto>
 };
+
+function capitaliseFirstLetter(string)
+{
+	return string.charAt(0).toUpperCase() + string.slice(1);
+}

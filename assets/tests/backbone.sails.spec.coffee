@@ -1,30 +1,27 @@
-###
-  Testing a library like this with jasmine is extremely difficult. For that reason, extensive
-  logging capabilities have been implemented to monitor the exact state of the application under
-  different scenarios.
 
-  To see what the library is capable of, set the log level to 6, open up two browser windows
-  and start cruding away(see below). Make sure you have 2 test models to play with.
-###
-
-Sails = Backbone.Sails
-Model = Sails.Model
-Collection = Sails.Collection
-
-Sails.configure
+Backbone.Sails.configure
 	attempts: 5
 	interval: 500
+	socketSync: false
+	subscribe: true
+
+TestCollection = undefined
+TestsCollection = undefined
 
 # Generic Test Model
-class TestModel extends Model
-	urlRoot: "/testmodel"
+class TestModel extends Backbone.Sails.Model
 
 # Generic Test Collection
-class TestCollection extends Collection
+class TestCollection extends Backbone.Sails.Collection
 	url: "/testmodel"
+	model: TestModel
 
 modelOne = undefined
 modelTwo = undefined
+modelOneTests = undefined
+modelOneModel = undefined
+tests = undefined
+
 coll = new TestCollection()
 coll.on "all", -> console.log "collection says...", arguments
 coll.sort "createdAt  DESC"
@@ -35,4 +32,19 @@ coll.fetch()
 	modelOne?.on "all", -> console.log "modelOne says..", arguments
 	modelTwo?.on "all", -> console.log "modelTwo says..", arguments
 
-Sails.on "all", -> console.log "Sails says...", arguments
+	modelOneTests = modelOne.get("tests")
+	modelOneTests.on "all", -> console.log "associated collection says...", arguments
+
+	modelOneModel = modelOneTests.push
+		name: "A new one!"
+
+	modelOneModel.save()
+
+	modelOne.addTo "tests",
+		name: "I was added to modelOne"
+	.done (data)->
+		modelOne.removeFrom "tests", data
+		.done ->
+
+
+Backbone.Sails.on "all", -> console.log "Sails says...", arguments
