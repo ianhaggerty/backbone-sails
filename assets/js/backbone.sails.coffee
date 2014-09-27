@@ -245,16 +245,15 @@
 		socketClient[methodMap[method]] url, payload, (res, jwres)->
 			if res.error || jwres.statusCode != 200
 
-				# todo - possible revision of 2nd argument, see http://api.jquery.com/jQuery.ajax/
 				options.error? jwres, jwres.statusCode, jwres.body # triggers 'error'
 
-				instance.trigger "#{prefix}socketerror", jwres, jwres.statusCode, jwres.body
+				instance.trigger "#{prefix}socketError", jwres, jwres.statusCode, jwres.body
 
 				defer.reject jwres, jwres.statusCode, jwres.body
 			else
 				options.success? res, jwres.statusCode, jwres # triggers 'sync'
 
-				instance.trigger "#{prefix}socketsync", instance, res, options
+				instance.trigger "#{prefix}socketSync", instance, res, options
 
 				defer.resolve res, jwres.statusCode, jwres
 
@@ -273,10 +272,9 @@
 
 
 		instance.trigger "request", instance, defer.promise(), options
-		instance.trigger "#{prefix}socketrequest", instance, defer.promise(), options
+		instance.trigger "#{prefix}socketRequest", instance, defer.promise(), options
 
 		defer.promise()
-
 
 # Promises a simulated jqXHR socket request
 	sendingSocketRequest = (method, instance, options) ->
@@ -453,7 +451,7 @@
 			socketClient.on modelName, collections[modelName]._sails.handler
 
 			# Tell Backbone.Sails this collection has been registered
-			Backbone.Sails.trigger "register:collection", modelName, collections[modelName]
+			Backbone.Sails.trigger "registered:collection", modelName, collections[modelName]
 
 		coll._sails.registered = true
 
@@ -512,7 +510,7 @@
 
 			socketClient.on modelName, models[modelName]._sails.handler
 
-			Backbone.Sails.trigger "register:model", modelName, models[modelName]
+			Backbone.Sails.trigger "registered:model", modelName, models[modelName]
 
 		model._sails.registered = true
 
@@ -572,7 +570,7 @@
 				coll.listenTo aggregator, "created", (e) ->
 					coll.trigger "#{prefix}created", e.data, e
 
-				coll.trigger "#{Sails.config.eventPrefix}subscribed:collection", modelName, coll
+				coll.trigger "#{Sails.config.eventPrefix}subscribed:collection", coll, modelName
 				coll._sails.subscribed = true
 				defer.resolve()
 		defer.promise()
@@ -605,7 +603,6 @@
 				aggregator = models[modelName][model.id]
 				prefix = Sails.config.eventPrefix
 
-				# todo - coerce to associated model?
 				model.listenTo aggregator, "addedTo", (e)->
 					model.trigger "#{prefix}addedTo", model, e
 					model.trigger "#{prefix}addedTo:#{e.attribute}", model, e.addedId, e
@@ -619,7 +616,6 @@
 
 				model.listenTo aggregator, "updated", (e)->
 					# do some dirty checking
-					# todo associations-collection support?
 					changed = false
 					for attribute, val of e.data
 						if model.get(attribute) != val
@@ -631,7 +627,7 @@
 				model.listenTo aggregator, "messaged", (e)->
 					model.trigger "#{prefix}messaged", model, e
 
-				model.trigger "#{Sails.config.eventPrefix}subscribed:model", modelName, model
+				model.trigger "#{Sails.config.eventPrefix}subscribed:model", model, modelName
 				model._sails.subscribed = true
 				defer.resolve()
 

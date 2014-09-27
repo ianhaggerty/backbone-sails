@@ -26,7 +26,9 @@ tests = undefined
 
 coll = new TestCollection()
 coll.on "all", -> console.log "collection says...", arguments
-coll.query().sort "createdAt  DESC"
+coll.query()
+	.sort "createdAt DESC"
+	.limit 10
 coll.fetch()
 .done ->
 	modelOne = coll.models[0]
