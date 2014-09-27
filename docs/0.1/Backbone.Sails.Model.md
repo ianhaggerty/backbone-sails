@@ -58,17 +58,73 @@
 
  **@example**
 
-```javascript
-model.query({
+ ```javascript
+ model.query({
   populate: "user"
-})
-model.query({
+ })
+ model.query({
   populate: ["user", "message"]
-})
-model.query().populate("user")
-model.query().populate(["user", "message"])
-model.query().populate("user", "message")
-```
+ })
+ model.query().populate("user")
+ model.query().populate(["user", "message"])
+ model.query().populate("user", "message")
+ ```
+
+* ### `addTo(key, model [,options])`
+ `addTo` is a convenience method to [`addTo`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) a collection associated to the model resource referenced by this model. It will make a POST to `model.url/key` and attempt to create a new model resource as part of the associated collection.
+ 
+ Make sure you allow your users to [`populate`](http://sailsjs.org/#/documentation/reference/blueprint-api/Populate.html) before attempting to call this. Also, make sure the instance you are posting [`isNew`](http://backbonejs.org/#Model-isNew). Why? Sails has no method for PUT'ing to associated collection's or model's - bare in mind the RESTful controllers, by default, only allow you to [POST](http://sailsjs.org/#/documentation/reference/blueprint-api/Create.html) and [DELETE](http://sailsjs.org/#/documentation/reference/blueprint-api/Destroy.html).
+ 
+ This method will *not* mutate the client side `Backbone.Model` object on which `addTo` is being called. You are welcome to do that yourself, after the `addTo` has resolved (see the example usage). Though you might find creating an [associated collection]() better suits your needs.
+ 
+ The blueprint [`addTo`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) has been changed slightly to play nicely with this clientside API. *Instead of returning the model resource being added to, it now returns the model resource added.*
+ 
+ **@params**
+ * `key` A string indicating the association (attribute) to add to.
+ * `model` The model to be added to the associated collection. This can be a pojo of attribute-value's or a [`Backbone.Model`](http://backbonejs.org/#Model).
+ * `options` The options object to be passed along with the request.
+ 
+ **@example**
+ 
+ ```javascript
+ // POST to /user/id/messages over the socket
+ result = user.addTo("messages", { content: "Hi there!" }, { socketSync: true })
+ result.done(function(resp){
+   user.attributes.messages.push(resp);
+   user.trigger("change"); user.trigger("change:messages");
+   
+   // create a the recent message model persisted
+   message = new Message(resp);
+   // the message resource should now be registered
+   // we have subscribe this instance to forward server side events
+   message.subscribe();
+ })
+ ```
+ 
+ * ### `addTo(key, model [,options])`
+  `addTo` is a convenience method to [`addTo`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) a collection associated to the model resource referenced by this model. It will make a POST to `model.url/key` and attempt to create a new model resource as part of the associated collection.
+  
+  Make sure you allow your users to [`populate`](http://sailsjs.org/#/documentation/reference/blueprint-api/Populate.html) before attempting to call this. Also, make sure the instance you are posting [`isNew`](http://backbonejs.org/#Model-isNew). Why? Sails has no method for PUT'ing to associated collection's or model's - bare in mind the RESTful controllers, by default, only allow you to [POST](http://sailsjs.org/#/documentation/reference/blueprint-api/Create.html) and [DELETE](http://sailsjs.org/#/documentation/reference/blueprint-api/Destroy.html).
+  
+  This method will *not* mutate the client side `Backbone.Model` object on which `addTo` is being called. You are welcome to do that yourself, after the `addTo` has resolved (see the example usage).
+  
+  The blueprint [`addTo`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) has been changed slightly to play nicely with this clientside API. *Instead of returning the model resource being added to, it now returns the model resource added.*
+  
+  **@params**
+  * `key` A string indicating the association (attribute) to add to.
+  * `model` The model to be added to the associated collection. This can be a pojo of attribute-value's or a [`Backbone.Model`](http://backbonejs.org/#Model).
+  * `options` The options object to be passed along with the request.
+  
+  **@example**
+  
+  ```javascript
+  // POST to /user/id/messages over the socket
+  result = user.addTo("messages", { content: "Hi there!" }, { socketSync: true })
+  result.done(function(resp){
+    user.attributes.messages.push(resp);
+    user.trigger("change"); user.trigger("change:messages");
+  })
+  ```
 
 ## Events
 Events is where the magic happens. Many server-originated socket based event's are triggered on a *subscribed* model, in addition to the usual `Backbone` events. These additional event's open up the possibility to **respond to changes on your model server-side**. The core ethos of this plugin was to get these event's happening on your models and collections, without spa-ghe-ty-ing your way around `io.socket.on` and the likes. Take a good long look... 

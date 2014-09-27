@@ -693,13 +693,7 @@
 		# DRY's up the add remove function's
 		_addRemove: (save, key, model, options)->
 			if !isModel model
-				Collection = _.result(@associations, key)
-				collection = new Collection()
-
-				Model =  collection.model || Sails.Model
-
-				# collection used to compute url property if urlRoot is undefined
-				model = new Model model, { collection: collection }
+				model = new Backbone.Model model
 
 			options = _.assign {}, options, { url: _.result(@, 'url') + '/' + key }
 
