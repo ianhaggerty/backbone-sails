@@ -21,7 +21,6 @@
 # Global Backbone.Sails object extends Backbone.Events
 	Sails = _.extend {}, Backbone.Events
 
-
 	# Event aggregators for 'model' resources will be populated here as they come in.
 	# e.g. model({ urlRoot: "/users", id: "1" }) will, upon subscription, register an
 	# event aggregator at Backbone.Sails.Models.users[1]
@@ -38,7 +37,9 @@
 
 	# Helper function for setting up configuration
 	Sails.configure = (config) ->
-		_.extend Sails.config, config
+		_.assign Sails.config.query, parseQueryObj config.query
+		delete config.query
+		_.assign Sails.config, config
 
 # Global Backbone.Sails.config configuration object
 	Sails.config =
@@ -76,16 +77,16 @@
 	# possibly not achieve realtime commuinication, when it is available.
 		attempts: 20
 
-	# `defaults` configures the default values for certain options available to
+	# `query` configures the default values for certain options available to
 	# the public API of Backbone.Sails. At the moment, it only set's the default filter
 	# queries for Backbone.Sails.Collection. These options are easily overridden with
 	# the chainable collection methods `coll.where({ name: { contains: "I" } })`,
 	# `coll.sort("name ASC")`, `coll.limit(5)`, `coll.skip(10)` and finally
 	# `coll.paginate(pageNo, limit)`
-		defaults:
-			where: {}
+		query:
+			where: ''
 			limit: 30
-			sort: {}
+			sort: ''
 			skip: 0
 
 	# If defined, this should be a function which attempts to acquire the socket client
@@ -309,48 +310,68 @@
 
 		result
 
-# Returns the filter query for a Backbone.Sails.Collection
-	filterQuery = (coll) ->
-		query = []
-		if sails = coll._sails
-			if _.isObject sails.where
-				query.push "where=#{JSON.stringify sails.where}"
-			else if _.isString sails.where
-				query.push "where=#{sails.where}"
+	parseQuery =
+		where: (criteria) ->
+			if _.isObject criteria
+				JSON.stringify criteria
+			else if _.isString criteria
+				criteria
 			else
-				throw new Error "Backbone.Sails: where expects a string or an object"
-
-			if _.isObject sails.sort
-				query.push "sort=#{JSON.stringify sails.sort}"
-			else if _.isString sails.sort
-				query.push "sort=#{sails.sort}"
+				throw new Error "query.where expects a string or an object"
+		sort: (criteria) ->
+			if _.isObject criteria
+				JSON.stringify criteria
+			else if _.isString criteria
+				criteria
 			else
-				throw new Error "Backbone.Sails: sort expects a string or an object"
-
-			if _.isNumber sails.limit
-				query.push "limit=#{sails.limit}"
+				throw new Error "query.sort expects a string or an object"
+		limit: (criteria) ->
+			if _.isNumber criteria
+				criteria
 			else
-				throw new Error "Backbone.Sails: limit expects a number"
-
-			if _.isNumber sails.skip
-				query.push "skip=#{sails.skip}"
+				throw new Error "query.limit expects a number"
+		skip: (criteria) ->
+			if _.isNumber criteria
+				criteria
 			else
 				throw new Error "Backbone.Sails: skip expects a number"
+		populate: (criteria) ->
+			args = _(arguments)
+			if args.length > 1
+				args.join ','
+			else if _.isArray criteria
+				criteria.join ','
+			else if _.isString criteria
+				criteria
+			else
+				throw new Error "query.populate expects a string"
 
-			"?" + query.join("&")
-		else
-			""
+	parseQueryObj = (query) ->
+		for key, val of query
+			query[key] = parseQuery[key] val
+		query
+
+# Returns the query string for an instance
+	queryString = (instance) ->
+		queries = []
+
+		query = _.defaults {}, instance._sails.query, Sails.config.query
+
+		for key, val of query
+			queries.push "#{key}=#{val}"
+
+		"?" + queries.join("&")
 
 # Augments the url for sync requests - according to the instance type
-	augmentUrl = (method, instance) ->
+	augmentUrl = (method, instance, options) ->
 		# previousUrl = _.result instance, 'url'
 
 		previousUrl = instance.url
 
-		if isCollection(instance) && isSails(instance) && method == "read"
+		if method == "read"
 			url = _.result instance, 'url'
 
-			url += filterQuery(instance) || ""
+			url += queryString instance
 
 			instance.url = url
 
@@ -549,9 +570,7 @@
 				prefix = Sails.config.eventPrefix
 
 				coll.listenTo aggregator, "created", (e) ->
-					Model = coll.model
-					model = new Model(e.data)
-					coll.trigger "#{prefix}created", model, e
+					coll.trigger "#{prefix}created", e.data, e
 
 				coll.trigger "#{Sails.config.eventPrefix}subscribed:collection", modelName, coll
 				coll._sails.subscribed = true
@@ -589,11 +608,11 @@
 				# todo - coerce to associated model?
 				model.listenTo aggregator, "addedTo", (e)->
 					model.trigger "#{prefix}addedTo", model, e
-					model.trigger "#{prefix}addedTo:#{e.attribute}", model, e.id, e
+					model.trigger "#{prefix}addedTo:#{e.attribute}", model, e.addedId, e
 
 				model.listenTo aggregator, "removedFrom", (e)->
 					model.trigger "#{prefix}removedFrom", model, e
-					model.trigger "#{prefix}removedFrom:#{e.attribute}", model, e.id, e
+					model.trigger "#{prefix}removedFrom:#{e.attribute}", model, e.removedId, e
 
 				model.listenTo aggregator, "destroyed", (e)->
 					model.trigger "#{prefix}destroyed", model, e
@@ -699,11 +718,12 @@
 
 		# 'removes from' an association collection
 		removeFrom: (key, model, options = {})->
-			options = wrapDelete model, options
+			wrapDelete model, options
 			@_addRemove false, key, model, options
 
 		toOne: (key, model) ->
-			0
+			@set key, model.id
+			@
 
 		fetch: (options) ->
 			options = if options then _.clone(options) else {}
@@ -832,15 +852,30 @@
 
 			return result
 
+		query: (criteria) ->
+			model = this
+			if criteria
+				model._sails.query = parseQueryObj criteria
+				return
+
+			api =
+				populate: (criteria) ->
+					model._sails.query.populate = parseQuery.populate.apply {}, arguments
+					api
+			api
+
 		constructor: ->
 			super
 
 			@_sails =
 				subscribed: false
 				registered: false
+				query: {}
 
 # The all important collection class
 	class Sails.Collection extends Backbone.Collection
+		query: Sails.config.query # defaults
+
 		fetch: (options) ->
 			options = if options then _.clone(options) else {}
 			if _.isUndefined options.parse then options.parse = true
@@ -866,26 +901,38 @@
 				options: options
 				delegateSuccess: delegateSuccess
 
-		where: (criteria) ->
-			@_sails.where = criteria
-			@
+		query: (criteria) ->
+			coll = this
+			if criteria
+				coll._sails.query = parseQueryObj criteria
+				return
 
-		skip: (skip) ->
-			@_sails.skip = skip
-			@
+			api =
+				where: (criteria) ->
+					coll._sails.query.where = parseQuery.where criteria
+					api
 
-		sort: (sort) ->
-			@_sails.sort = sort
-			@
+				skip: (criteria) ->
+					coll._sails.query.skip = parseQuery.skip criteria
+					api
 
-		limit: (limit) ->
-			@_sails.limit = limit
-			@
+				sort: (criteria) ->
+					coll._sails.query.sort = parseQuery.sort criteria
+					api
 
-		paginate: (page = 0, limit = Sails.config.defaultLimit) ->
-			@_sails.skip = page * limit
-			@_sails.limit = limit
-			@
+				limit: (criteria) ->
+					coll._sails.query.limit = parseQuery.limit criteria
+					api
+
+				populate: () ->
+					coll._sails.query.populate = parseQuery.populate.apply {}, arguments
+					api
+
+				paginate: (page, limit) ->
+					api.skip page * limit
+					api.limit limit
+					api
+			api
 
 		model: Sails.Model
 
@@ -893,17 +940,15 @@
 			super
 
 			@_sails =
-				where : Sails.config.defaults.where
-				skip  : Sails.config.defaults.skip
-				sort  : Sails.config.defaults.sort
-				limit : Sails.config.defaults.limit
 				subscribed: false
 				registered: false
+				query: {}
 
 # A very special function. This wraps an existing Collection constructor
-# and returns a correspnding 'associated' collection constructor. The
+# and returns a corresponding 'associated' collection constructor. The
 # associated collection is constructed with a model instance and a key.
-# This is different from the Backbone convention.
+# POST, DELETES and GETS all then go to the backend via the associated
+# collection resource. PUT goes to the associated model resource.
 	Sails.associated = (Collection)->
 		PUT = Collection.prototype.url
 
@@ -922,9 +967,9 @@
 						# PUT /associatedmodel/associd
 						super key, val, options
 
-			destroy: (options) ->
+			destroy: (options= {}) ->
 				# DELETE to /model/id/assoc
-				options = wrapDelete @, options
+				wrapDelete @, options
 				super options
 
 		class AssociatedCollection extends Collection

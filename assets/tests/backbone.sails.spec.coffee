@@ -4,6 +4,8 @@ Backbone.Sails.configure
 	interval: 500
 	socketSync: false
 	subscribe: true
+	query:
+		limit: 20
 
 TestCollection = undefined
 TestsCollection = undefined
@@ -24,27 +26,13 @@ tests = undefined
 
 coll = new TestCollection()
 coll.on "all", -> console.log "collection says...", arguments
-coll.sort "createdAt  DESC"
+coll.query().sort "createdAt  DESC"
 coll.fetch()
 .done ->
 	modelOne = coll.models[0]
 	modelTwo = coll.models[1]
 	modelOne?.on "all", -> console.log "modelOne says..", arguments
 	modelTwo?.on "all", -> console.log "modelTwo says..", arguments
-
-	modelOneTests = modelOne.get("tests")
-	modelOneTests.on "all", -> console.log "associated collection says...", arguments
-
-	modelOneModel = modelOneTests.push
-		name: "A new one!"
-
-	modelOneModel.save()
-
-	modelOne.addTo "tests",
-		name: "I was added to modelOne"
-	.done (data)->
-		modelOne.removeFrom "tests", data
-		.done ->
 
 
 Backbone.Sails.on "all", -> console.log "Sails says...", arguments

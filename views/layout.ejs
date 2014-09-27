@@ -1,31 +1,10 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Dot-Dot</title>
+    <title>Backbone.Sails Examples</title>
 
     <!-- Viewport mobile tag for sensible mobile support -->
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-
-    <!-- Google Fonts -->
-    <link href='http://fonts.googleapis.com/css?family=Comfortaa:700,400' rel='stylesheet' type='text/css'>
-    <link href='http://fonts.googleapis.com/css?family=Raleway:300' rel='stylesheet' type='text/css'>
-
-    <!-- Favicon (from http://realfavicongenerator.net/) -->
-    <link rel="apple-touch-icon" sizes="57x57" href="/images/favicon/apple-touch-icon-57x57.png">
-    <link rel="apple-touch-icon" sizes="114x114" href="/images/favicon/apple-touch-icon-114x114.png">
-    <link rel="apple-touch-icon" sizes="72x72" href="/images/favicon/apple-touch-icon-72x72.png">
-    <link rel="apple-touch-icon" sizes="144x144" href="/images/favicon/apple-touch-icon-144x144.png">
-    <link rel="apple-touch-icon" sizes="60x60" href="/images/favicon/apple-touch-icon-60x60.png">
-    <link rel="apple-touch-icon" sizes="120x120" href="/images/favicon/apple-touch-icon-120x120.png">
-    <link rel="apple-touch-icon" sizes="76x76" href="/images/favicon/apple-touch-icon-76x76.png">
-    <link rel="apple-touch-icon" sizes="152x152" href="/images/favicon/apple-touch-icon-152x152.png">
-    <link rel="icon" type="image/png" href="/images/favicon/favicon-196x196.png" sizes="196x196">
-    <link rel="icon" type="image/png" href="/images/favicon/favicon-160x160.png" sizes="160x160">
-    <link rel="icon" type="image/png" href="/images/favicon/favicon-96x96.png" sizes="96x96">
-    <link rel="icon" type="image/png" href="/images/favicon/favicon-16x16.png" sizes="16x16">
-    <link rel="icon" type="image/png" href="/images/favicon/favicon-32x32.png" sizes="32x32">
-    <meta name="msapplication-TileColor" content="#da532c">
-    <meta name="msapplication-TileImage" content="/images/favicon/mstile-144x144.png">
 
     <!--STYLES-->
     <link rel="stylesheet" href="/styles/importer.css">
@@ -34,17 +13,33 @@
 
   <body>
     <!--TEMPLATES-->
-    
+    <script type="text/javascript" src="/jst.js"></script>
     <!--TEMPLATES END-->
 
     <!--SCRIPTS-->
     <script src="/js/dependencies/sails.io.js"></script>
     <script src="/js/dependencies/jquery.js"></script>
     <script src="/js/dependencies/lodash.js"></script>
-    <script src="/js/dependencies/backbone.js"></script>
     <script src="/js/dependencies/json2.js"></script>
+    <script src="/js/dependencies/backbone.js"></script>
     <script src="/js/backbone.js"></script>
-    <script src="/js/usage.js"></script>
+    <script src="/js/examples/dependencies/backbone.babysitter.js"></script>
+    <script src="/js/examples/dependencies/backbone.marionette.js"></script>
+    <script src="/js/examples/dependencies/backbone.wreqr.js"></script>
+    <script src="/js/examples/dependencies/config/marionette.js"></script>
+    <script src="/js/examples/ExamplesApp.js"></script>
+    <script src="/js/examples/apps/chatclient/chatclient_app.js"></script>
+    <script src="/js/examples/apps/chatclient/entities/current.js"></script>
+    <script src="/js/examples/apps/chatclient/entities/message.js"></script>
+    <script src="/js/examples/apps/chatclient/entities/user.js"></script>
+    <script src="/js/examples/apps/chatclient/messages/common/layout_view.js"></script>
+    <script src="/js/examples/apps/chatclient/messages/create/create_controller.js"></script>
+    <script src="/js/examples/apps/chatclient/messages/create/create_view.js"></script>
+    <script src="/js/examples/apps/chatclient/messages/list/list_controller.js"></script>
+    <script src="/js/examples/apps/chatclient/messages/list/list_view.js"></script>
+    <script src="/js/examples/apps/chatclient/messages/messages_controller.js"></script>
+    <script src="/js/examples/apps/chatclient/users/create/create_controller.js"></script>
+    <script src="/js/examples/apps/chatclient/users/create/create_view.js"></script>
     <!--SCRIPTS END-->
 
     <%- body %>
