@@ -248,13 +248,13 @@
 				# todo - possible revision of 2nd argument, see http://api.jquery.com/jQuery.ajax/
 				options.error? jwres, jwres.statusCode, jwres.body # triggers 'error'
 
-				instance.trigger "#{prefix}socketerror", jwres, jwres.statusCode, jwres.body
+				instance.trigger "#{prefix}socketError", jwres, jwres.statusCode, jwres.body
 
 				defer.reject jwres, jwres.statusCode, jwres.body
 			else
 				options.success? res, jwres.statusCode, jwres # triggers 'sync'
 
-				instance.trigger "#{prefix}socketsync", instance, res, options
+				instance.trigger "#{prefix}socketSync", instance, res, options
 
 				defer.resolve res, jwres.statusCode, jwres
 
@@ -273,10 +273,9 @@
 
 
 		instance.trigger "request", instance, defer.promise(), options
-		instance.trigger "#{prefix}socketrequest", instance, defer.promise(), options
+		instance.trigger "#{prefix}socketRequest", instance, defer.promise(), options
 
 		defer.promise()
-
 
 # Promises a simulated jqXHR socket request
 	sendingSocketRequest = (method, instance, options) ->
@@ -572,7 +571,7 @@
 				coll.listenTo aggregator, "created", (e) ->
 					coll.trigger "#{prefix}created", e.data, e
 
-				coll.trigger "#{Sails.config.eventPrefix}subscribed:collection", modelName, coll
+				coll.trigger "#{Sails.config.eventPrefix}subscribe", coll, modelName
 				coll._sails.subscribed = true
 				defer.resolve()
 		defer.promise()
@@ -631,7 +630,7 @@
 				model.listenTo aggregator, "messaged", (e)->
 					model.trigger "#{prefix}messaged", model, e
 
-				model.trigger "#{Sails.config.eventPrefix}subscribed:model", modelName, model
+				model.trigger "#{Sails.config.eventPrefix}subscribe", model, modelName
 				model._sails.subscribed = true
 				defer.resolve()
 
