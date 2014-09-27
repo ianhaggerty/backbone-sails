@@ -698,9 +698,33 @@
 			options = _.assign {}, options, { url: _.result(@, 'url') + '/' + key }
 
 			if save
-				model.save {}, options
+				if model.isNew()
+					result = model.save {}, options
+					if options.update
+						that = @
+						result.done ->
+							if _.isArray that.attributes[key]
+								that.attributes[key].push model.attributes
+							else
+								that.attributes[key] = [model.attributes]
+							that.trigger "change", that, options
+							that.trigger "change:#{key}", that, that.attributes[key], options
+				else
+					result = (new $.Deferred()).reject("model is not new, cannot 'add to'").promise()
 			else
-				model.destroy options
+				if !model.isNew()
+					result = model.destroy options
+					if options.update
+						that = @
+						result.done ->
+							if _.isArray (that.attributes[key])
+								_.remove that.attributes[key], (m) ->
+									m.id ==  model.id
+								that.trigger "change", that, options
+								that.trigger "change:#{key}", that, that.attributes[key], options
+				else
+					result = (new $.Deferred()).reject("model is new, cannot 'remove from'").promise()
+			result
 
 		# 'adds to' an association collection
 		addTo: (key, model, options)->
@@ -714,6 +738,9 @@
 		toOne: (key, model) ->
 			@set key, model.id
 			@
+
+		subscribe: ->
+			subscribingModel @
 
 		fetch: (options) ->
 			options = if options then _.clone(options) else {}
