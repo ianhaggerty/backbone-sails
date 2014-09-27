@@ -2,6 +2,52 @@
 
 ***
 
+* ## [Methods](#methods)
+
+ * ### [`save([attrs[key, val]], [options])`](#saveattrskey-val-options)
+ 
+ * ### [`fetch(attrs[key, val], [options])`](#fetchattrskey-val-options)
+ 
+ * ### [`destroy([options])`](#destroyoptions)
+ 
+ * ### [`query([criteria])`](#querycriteria)
+ 
+ * ### [`addTo(key, model [,options])`](#addtokey-model-options)
+ 
+ * ### [`removeFrom(key, model [,options])`](#removefromkey-model-options)
+ 
+ * ### [`toOne(key, model)`](#toonekey-model)
+ 
+ * ### [`subscribe()`](#subscribe)
+ 
+* ## [Events](#events)
+
+ * ### [`addedTo(model, socketEvent)`](#addedto)
+
+ * ### [`addedTo:attribute(model, id, socketEvent)`](#addedtoattribute)
+ 
+ * ### [`removedFrom(model, socketEvent)`](#removedfrom)
+ 
+ * ### [`removedFrom:attribute(model, id, socketEvent)`](#removedfromattribute)
+ 
+ * ### [`destroyed(model, socketEvent)`](#destroyed)
+ 
+ * ### [`updated(model, socketEvent)`](#updated)
+ 
+ * ### [`updatedattribute(model, value, socketEvent)`](#updatedattribute)
+ 
+ * ### [`messaged(model, socketEvent)`](#messaged)
+ 
+ * ### [`socketsync(model, response, options)`](#socketsync)
+ 
+ * ### [`socketError(model, response, options)`](#socketerror)
+ 
+ * ### [`socketRequest(model, promise, options)`](#socketrequest)
+ 
+ * ### [`subscribed:model(model, modelName)`](#subscribedmodel)
+
+***
+
 # `Backbone.Sails.Model`
 
 ### @type Object
@@ -148,6 +194,7 @@
 * ### `subscribe()`
   `subscribe` will set up this model to listen for socket based events from the relevant event aggregator. It is only necessary to call this when you have created a new model instance for a model resource that is known to be subscribed to (on the server) for the socket connected. If you are unsure what that means, simply call `this.fetch({ socketSync: true }).done(// socket stuff)` to guarantee that this model is registered to receive socket events.
   
+ **@returns `$.Deferred`**
   **@example**
    
    ```javascript
@@ -166,10 +213,12 @@
      // it is not listening to the event aggregator created earlier
      // subscribing it will set up the relevant listeners
      
-     message.subscribe();
-     
-     // message model will now fire its socket based events
-     // doing it this way avoids another socket request
+     message.subscribe().done(function(){
+      
+      // message model will now fire its socket based events
+      // doing it this way avoids another socket request
+      
+     });
    })
    ```
 
