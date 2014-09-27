@@ -4,47 +4,47 @@
 
 * ## [Methods](#methods)
 
- * ### [`save([attrs[key, val]], [options])`](#saveattrskey-val-options)
+ * ### [`.save([attrs[key, val]], [options])`](#saveattrskey-val-options)
  
- * ### [`fetch(attrs[key, val], [options])`](#fetchattrskey-val-options)
+ * ### [`.fetch(attrs[key, val], [options])`](#fetchattrskey-val-options)
  
- * ### [`destroy([options])`](#destroyoptions)
+ * ### [`.destroy([options])`](#destroyoptions)
  
- * ### [`query([criteria])`](#querycriteria)
+ * ### [`.query([criteria])`](#querycriteria)
  
- * ### [`addTo(key, model [,options])`](#addtokey-model-options)
+ * ### [`.addTo(key, model [,options])`](#addtokey-model-options)
  
- * ### [`removeFrom(key, model [,options])`](#removefromkey-model-options)
+ * ### [`.removeFrom(key, model [,options])`](#removefromkey-model-options)
  
- * ### [`toOne(key, model)`](#toonekey-model)
+ * ### [`.toOne(key, model)`](#toonekey-model)
  
- * ### [`subscribe()`](#subscribe)
+ * ### [`.subscribe()`](#subscribe)
  
 * ## [Events](#events)
 
- * ### [`addedTo(model, socketEvent)`](#addedto)
+ * ### [`"addedTo" (model, socketEvent)`](#addedto)
 
- * ### [`addedTo:attribute(model, id, socketEvent)`](#addedtoattribute)
+ * ### [`"addedTo:attribute" (model, id, socketEvent)`](#addedtoattribute)
  
- * ### [`removedFrom(model, socketEvent)`](#removedfrom)
+ * ### [`"removedFrom" (model, socketEvent)`](#removedfrom)
  
- * ### [`removedFrom:attribute(model, id, socketEvent)`](#removedfromattribute)
+ * ### [`"removedFrom:attribute" (model, id, socketEvent)`](#removedfromattribute)
  
- * ### [`destroyed(model, socketEvent)`](#destroyed)
+ * ### [`"destroyed" (model, socketEvent)`](#destroyed)
  
- * ### [`updated(model, socketEvent)`](#updated)
+ * ### [`"updated" (model, socketEvent)`](#updated)
  
- * ### [`updatedattribute(model, value, socketEvent)`](#updatedattribute)
+ * ### [`"updatedattribute" (model, value, socketEvent)`](#updatedattribute)
  
- * ### [`messaged(model, socketEvent)`](#messaged)
+ * ### [`"messaged" (model, socketEvent)`](#messaged)
  
- * ### [`socketsync(model, response, options)`](#socketsync)
+ * ### [`"socketsync" (model, response, options)`](#socketsync)
  
- * ### [`socketError(model, response, options)`](#socketerror)
+ * ### [`"socketError" (model, response, options)`](#socketerror)
  
- * ### [`socketRequest(model, promise, options)`](#socketrequest)
+ * ### [`"socketRequest" (model, promise, options)`](#socketrequest)
  
- * ### [`subscribed:model(model, modelName)`](#subscribedmodel)
+ * ### [`"subscribed:model" (model, modelName)`](#subscribedmodel)
 
 ***
 
