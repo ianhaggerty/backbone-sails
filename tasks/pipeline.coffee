@@ -3,20 +3,27 @@ cssFilesToInject = [
 ]
 
 jsFilesToInject = [
+	## Backbone.Sails dependencies ##
 	"js/dependencies/sails.io.js"
 	"js/dependencies/jquery.js"
-	"js/dependencies/jquery.**.js"
 	"js/dependencies/lodash.js"
+	"js/dependencies/json2.js"
 	"js/dependencies/backbone.js"
-	"js/dependencies/backbone.**.js"
-	"js/dependencies/**/*.js"
 
-	"js/config/**/*.js"
+	## Backbone.Sails ##
+	"js/backbone.js"
 
-	"js/app.js"
-	"js/entities/**/*.js"
-	"js/apps/**/*.js"
+	## Examples dependencies ##
+	"js/examples/dependencies/*.js"
+	## Examples dependencies configuration ##
+	"js/examples/dependencies/config/**/*.js"
+	## Examples App ##
+	"js/examples/ExamplesApp.js"
+	## Examples Submodules ##
+	"js/examples/**/*.js"
 
+
+	## Anything else ##
 	"js/**/*.js"
 ]
 

@@ -35,5 +35,11 @@ routes =
 	'/':
 		view: "homepage"
 
+clientSide = [
+	'/examples/chatclient'
+]
+
+for route in clientSide
+	routes[route] = view: 'homepage'
 
 module.exports.routes = routes

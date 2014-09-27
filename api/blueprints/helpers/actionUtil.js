@@ -280,10 +280,14 @@ module.exports = {
 	 * @param  {Request} req
 	 */
 	parseSort: function (req) {
-		var sort = req.params.all().sort || undefined;
+		// TODO This has been edited to work with JSON string objects coming in
+		var query = req.params.all().sort || undefined;
+		var sort;
 
-		if (_.isString(sort)) {
-			sort = tryToParseJSON(sort)
+		if (_.isString(query)) {
+			sort = tryToParseJSON(query)
+			if(sort instanceof Error)
+				sort = query
 		} else {
 			sort = req.options.sort
 		}

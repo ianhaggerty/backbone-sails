@@ -111,7 +111,7 @@ module.exports.blueprints =
 	may result in very heavy api calls
 	###
 
-	populate: true,
+	populate: false,
 
 	###
 	The default number of records to show in the response from a "find"
