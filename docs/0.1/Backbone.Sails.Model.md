@@ -4,6 +4,8 @@
 
 * ## [Methods](#methods-1)
 
+ * ### [`constructor/initialize([attrs], [options])`](#constructorinitializeattrs-options-1)
+
  * ### [`.save([attrs[key, val]], [options])`](#saveattrskey-val-options-1)
  
  * ### [`.fetch(attrs[key, val], [options])`](#fetchattrskey-val-options-1)
@@ -15,8 +17,6 @@
  * ### [`.addTo(key, model [,options])`](#addtokey-model-options-1)
  
  * ### [`.removeFrom(key, model [,options])`](#removefromkey-model-options-1)
- 
- * ### [`.toOne(key, model)`](#toonekey-model-1)
  
  * ### [`.subscribe()`](#subscribe-1)
  
@@ -38,13 +38,13 @@
  
  * ### [`"messaged" (model, socketEvent)`](#messaged)
  
- * ### [`"socketsync" (model, response, options)`](#socketsync)
+ * ### [`"socketSync" (model, response, options)`](#socketsync)
  
  * ### [`"socketError" (model, response, options)`](#socketerror)
  
  * ### [`"socketRequest" (model, promise, options)`](#socketrequest)
  
- * ### [`"subscribed:model" (model, modelName)`](#subscribedmodel)
+ * ### [`"subscribed" (model, modelName)`](#subscribedmodel)
 
 ***
 
@@ -54,19 +54,30 @@
 ### @extends `Backbone.Model`
 ### @override `fetch, save, destroy`
 
-`Backbone.Sails.Model` is simply a `Backbone.Model` that fires ordinary `Backbone` events as well as events originating from server side changes to the resource referenced via the `url` (property or function). In order to achieve this, the usual `save` and `fetch` methods have been completely rewritten to make use of the networking internals of `Backbone.Sails` according to the configuration (see `socketSync` and `subscribe` properties of `Backbone.Sails.configure`). Furthermore, if the `socketSync` configuration option is `false`, in the event of a socket not being available, `Backbone.Sails` will delegate to whatever `sync` function is found on the model (usually just `Backbone.sync`).
+`Backbone.Sails.Model` is simply a `Backbone.Model` that fires ordinary `Backbone` events as well as [resourceful pub/sub](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub) events originating from a Sails backend. The `save` and `fetch` methods have been overridden to attempt to sync over socket's by default, delegating to [`sync`](http://backbonejs.org/#Model-sync) as configured (see the `socketSync` and `subscribe` configuration options).
+
 
 ## Methods
 
+* ### `constructor/initialize([attrs], [options])`
+
+ In addition to the [backbone configuration options](http://backbonejs.org/#Model-constructor), you can pass the `socketSync` and `subscribe` options to the model constructor.
+ 
+ **@example**
+ 
+ ```javascript
+ var model = new Backbone.Sails.Model({}, { socketSync: true })
+ ```
+
 * ### `save([attrs[key, val]], [options])`
- `Save` works just as before - it attempts to persist your model server-side. It will sync over web sockets if available. If web sockets aren't available, if `socketSync` is false, it will delegate to `model.sync`, and, if `subscribe` is true, it will wait for the socket to become available before sending another `read` request down the socket to subscribe the resource server side. If `socketSync` is true, it will wait for the socket to become available without ever delegating to `model.sync`.
+ `save` performs much the [same](http://backbonejs.org/#Model-save). You can pass the `socketSync` and `subscribe` options at the request level, as well as a `url` option. It will return either a pure `$.Deferred()` if synced over sockets, or a [`jqXHR`](http://api.jquery.com/jQuery.ajax/) if delegated to [`sync`](http://backbonejs.org/#Model-sync).
 
  **@params**
  * `[attrs]`
-    A set of key-value to be persisted onto the model resource. (No change from [Backbone](http://backbonejs.org/#Model-save))
+    A set of additional attributes to be persisted on the model resource.
 
  * `[key, val]`
-    Instead of passing a set of key-value pairs, you can just pass one making use of the first two arguments. (Again, no change from [Backbone](http://backbonejs.org/#Model-save), though this usage isn't documented)
+    A single additional attribute, e.g. `model.save("name", "Ian")`.
 
  * `[options]`
     You can pass the usual `success` and `error` callbacks in here, as well as plenty of options for `jqXHR` to get it's hands on (see [$.ajax](http://api.jquery.com/jQuery.ajax/) and [Model.save](http://backbonejs.org/#Model-save)). In addition, you can override the `socketSync` and `subscribe` configuration options on a per request basis.
@@ -75,8 +86,8 @@
  
  `save` will return a `$.Deferred`. If synced over socket's,  the deferred will resolve with parameters `(jwres.body, jwres.statusCode, jwres)` where `jwres` refers to [JSON WebSocket Response](http://sailsjs.org/#/documentation/reference/websockets/sails.io.js/socket.get.html) otherwise the deferred will reject with parameters `(jwres, jwres.statusCode, jwres.body)`. If synced over `jqXHR`, see [$.ajax](http://api.jquery.com/jQuery.ajax/) for details of resolution.
 
-* ### `fetch(attrs[key, val], [options])`
- `Fetch` works just as before - it attempts to fetch the server-side state of your model. It will sync over web sockets if available. If web sockets aren't available, if `socketSync` is false, it will delegate to `$.ajax` (`Backbone.sync`), and, if `subscribe` is true, it will wait for the socket to become available before sending another `read` request down the socket to subscribe the resource server side. If `socketSync` is true, it will wait for the socket to become available.
+* ### `fetch([options])`
+ `fetch` performs much the [same](http://backbonejs.org/#Model-fetch). You can pass the `socketSync` and `subscribe` options at the request level, as well as a `url` option. It will return either a pure `$.Deferred()` if synced over sockets, or a [`jqXHR`](http://api.jquery.com/jQuery.ajax/) if delegated to [`sync`](http://backbonejs.org/#Model-sync).
 
  **@params**
 
@@ -88,7 +99,7 @@
  `fetch` will return a `$.Deferred`. If synced over socket's,  the deferred will resolve with parameters `(jwres.body, jwres.statusCode, jwres)` where `jwres` refers to [JSON WebSocket Response](http://sailsjs.org/#/documentation/reference/websockets/sails.io.js/socket.get.html) otherwise the deferred will reject with parameters `(jwres, jwres.statusCode, jwres.body)`. If synced over `jqXHR`, see [$.ajax](http://api.jquery.com/jQuery.ajax/) for details of resolution.
 
 * ### `destroy([options])`
- `Destroy` works just as before - it sends a `DELETE` request to the server to delete the model resource. It will sync over web sockets if available. If web sockets aren't available, it will delegate to `$.ajax` (`Backbone.sync`). If `socketSync` is true, it will wait for the socket to become available.
+ `destroy` works just as [before](http://backbonejs.org/#Model-destroy). You can pass the `socketSync` and `subscribe` options at the request level, as well as a `url` option. It will return either a pure `$.Deferred()` if synced over sockets, or a [`jqXHR`](http://api.jquery.com/jQuery.ajax/) if delegated to [`sync`](http://backbonejs.org/#Model-sync).
 
  **@params**
 
@@ -118,22 +129,23 @@
 
 * ### `addTo(key, model [,options])`
 
- `addTo` is a convenience method to [`add to`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) a collection associated to the model resource referenced by this model. It will make a POST to `model/id/key` and attempt to create a new model resource as part of the associated collection.
+ `addTo` is a convenience method to [`add to`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) a collection associated to the model resource. It will make a POST request to `model/id/key` and attempt to create a new model resource as part of the associated collection. In that sense, you can think of it as an extension of `save`, however, you can only create new model resources with this function - not edit them (PUT is not supported through associated collections).
  
- Make sure you allow your users to [`add`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) by configuring your [policies](http://sailsjs.org/#/documentation/concepts/Policies) before attempting to call this. Also, make sure the instance you are posting [`isNew`](http://backbonejs.org/#Model-isNew), Otherwise, the promise returned will reject immediately. Why? Sails has no method for PUT'ing to associated collection's or model's - bare in mind the RESTful controllers, by default, only allow you to [POST](http://sailsjs.org/#/documentation/reference/blueprint-api/Create.html) and [DELETE](http://sailsjs.org/#/documentation/reference/blueprint-api/Destroy.html).
+ Make sure you allow your users to [`add`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) by configuring your [policies](http://sailsjs.org/#/documentation/concepts/Policies) before attempting to call this. Also, make sure the instance you are posting [`isNew`](http://backbonejs.org/#Model-isNew).
  
- This method will *not* mutate the client side `Backbone.Model` object on which `addTo` is being called. You are welcome to do that yourself, after the `addTo` has resolved (see the example usage). Though you might find creating an [associated collection]() better suits your needs. **Or**, you can set `update` to true in the `options` object to attempt to mutate `this.attributes` upon resolution.
+ `addTo` will *not*, by default, attempt to mutate `model.attributes`. You can pass the option `update` which will push to `model.attributes[key]` (or create a new array), triggering the [`change`](http://backbonejs.org/#Events-catalog) events upon resolution of request.
  
- The blueprint [`add`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) has been changed slightly to play nicely with this clientside API. *Instead of returning the model resource being added to, it now returns the model resource added.*
+ _The blueprint [`add`](http://sailsjs.org/#/documentation/reference/blueprint-api/Add.html) now returns the model resource added, not the model resource added to._
  
  **@params**
  
  * `key` A string indicating the association (attribute) to add to.
  
- * `model` The model to be added to the associated collection. This can be a pojo of attribute-value's or a [`Backbone.Model`](http://backbonejs.org/#Model).
+ * `model` The model to be added to the associated collection. This can be a pojo of key-val's or a [`Backbone.Model`](http://backbonejs.org/#Model).
  
  * `options` The options object to be passed along with the request.
-   [`update`] Set to true to attempt to update `this.attributes` upon resolution, triggering the relevant `change` events.
+   
+   [`update`] Set to `true` to attempt to push to `model.attributes[key]` upon resolution.
    
  **@returns `$.Deferred()`**
    
@@ -144,10 +156,7 @@
  ```javascript
  // POST to /user/id/messages over the socket
  user.addTo("messages", { content: "Hi there!" }, { socketSync: true }).done(function(resp){
-   user.attributes.messages.push(resp);
-   user.trigger("change"); user.trigger("change:messages");
-   
-   // OR create the recent message model persisted
+   // create the recent message model persisted
    message = new Message(resp);
    // the message resource should now be registered
    // we have to subscribe this instance clientside to forward server side events
@@ -156,18 +165,18 @@
  ```
  
  ```javascript
- // essentially achieves the same as the above
- // the message model will be subscribed after this request resolves over sockets
- user.addTo("messages", message, { update: true })
+ // will push to user.attributes.messages after resolution
+ // triggering `change` and `change:message`
+ user.addTo("messages", message, { update: true }) // message.isNew() == true
  ```
  
 * ### `removeFrom(key, model [,options])`
  
- `removeFrom` is a convenience method to [`remove from`](http://sailsjs.org/#/documentation/reference/blueprint-api/Remove.html) a collection associated to the model resource referenced by this model. It will make a DELETE to `model/id/key` and attempt to delete the model resource specified by the `model`.
+ `removeFrom` is a convenience method to [`remove from`](http://sailsjs.org/#/documentation/reference/blueprint-api/Remove.html) a collection associated to the model resource. It will make a DELETE request to `model/id/key`. You can think of it as a special version of `destroy`.
   
-  Make sure you allow your users to [`remove`](http://sailsjs.org/#/documentation/reference/blueprint-api/Remove.html) by configuring your [policies](http://sailsjs.org/#/documentation/concepts/Policies) before attempting to call this. Make sure the `model` you are deleting is not [`isNew()`](http://backbonejs.org/#Model-isNew). Otherwise, the promise returned will reject immediately.
+  Make sure you allow your users to [`remove`](http://sailsjs.org/#/documentation/reference/blueprint-api/Remove.html) by configuring your [policies](http://sailsjs.org/#/documentation/concepts/Policies) before attempting to call this. If the `model` you are deleting is not [`isNew()`](http://backbonejs.org/#Model-isNew), the promise returned will reject immediately.
   
- This method will *not* mutate the client side `Backbone.Model` object on which `removeFrom` is being called. You are welcome to do that yourself, after the `removeFrom` has resolved (see example usage). You might find creating an [associated collection]() better suits your needs. **Or**, you can set `update` to true in the `options` object to attempt to mutate `this.attributes` upon resolution.
+ `removeFrom` will *not*, by default, attempt to mutate `model.attributes`. You can pass the option `update` which will attempt to remove from the array `model.attributes[key]`. If successful, will trigger the [`change`](http://backbonejs.org/#Events-catalog) events upon resolution of request.
   
  **@params**
   * `key` A string indicating the association (attribute) to add to.
@@ -175,7 +184,10 @@
   * `model` The model to be added to the associated collection. This can be a pojo of attribute-value's or a [`Backbone.Model`](http://backbonejs.org/#Model).
   
   * `options` The options object to be passed along with the request.
-    [`update`] Set to true to attempt to update `this.attributes` upon resolution, triggering the relevant `change` events.
+  
+    [`update`] Set to true to attempt to update `this.attributes` upon resolution.
+    
+    [`idAttribute="id"`] The `id` attribute for the associated collection.
   
  **@returns `$.Deferred()`**
  
@@ -184,46 +196,41 @@
   **@example**
   
   ```javascript
-  // POST to /user/id/messages over the socket
+  // DELETE to /user/id/messages over the socket
   result = user.removeFrom("messages", { id: "123abc" }, { socketSync: true })
   ```
   
-* ### `toOne(key, model)`
-  `toOne` is a convenience function for `this.set(key, model.id)`. It is chainable (returns `this`).
-  
 * ### `subscribe()`
-  `subscribe` will set up this model to listen for socket based events from the relevant event aggregator. It is only necessary to call this when you have created a new model instance for a model resource that is known to be subscribed to (on the server) for the socket connected. If you are unsure what that means, simply call `this.fetch({ socketSync: true }).done(// socket stuff)` to guarantee that this model is registered to receive socket events.
+  `subscribe` will set up this model to listen for socket based events from the relevant event aggregator. It is only necessary to call this when you have created a new model instance for a model resource that is known to be subscribed to (on the server) for the socket connected.
   
  **@returns `$.Deferred`**
-  **@example**
+ 
+ **@example**
    
-   ```javascript
-   // POST to /user/id/messages over the socket
-   user.addTo("messages", { content: "Hi there!" }, { socketSync: true }).done(function(resp){
-     // upon syncing with socket's, an event aggregator will be created clientside
-     // for the model resource 'message'
-     
-     // server side blueprint 'add' has been called
-     // subscribing this socket to the message resource
-     // let's create a message model from the resp
-     
-     message = new Message(resp);
-     
-     // at the moment this model is not subscribed
-     // it is not listening to the event aggregator created earlier
-     // subscribing it will set up the relevant listeners
-     
-     message.subscribe().done(function(){
-      
-      // message model will now fire its socket based events
-      // doing it this way avoids another socket request
-      
-     });
-   })
-   ```
+ ```javascript
+ // POST to /user/id/messages over the socket
+ user.addTo("messages", { content: "Hi there!" }, { socketSync: true }).done(function(resp){
+   // upon syncing with socket's, an event aggregator will be created clientside
+   // for the model resource 'message'
+   
+   // server side blueprint 'add' has been called
+   // subscribing this socket to the message resource
+   // let's create a message model from the resp
+   
+   message = new Message(resp);
+   
+   // at the moment this model is not subscribed
+   // it is not listening to the event aggregator created earlier
+   // subscribing it will set up the relevant listeners
+   
+   message.subscribe().done(function(){
+    // message model will now fire its socket based events
+   });
+ })
+ ```
 
 ## Events
-Events is where the magic happens. Many server-originated socket based event's are triggered on a *subscribed* model, in addition to the usual `Backbone` events. These additional event's open up the possibility to **respond to changes on your model server-side**. The core ethos of this plugin was to get these event's happening on your models and collections, without spa-ghe-ty-ing your way around `io.socket.on` and the likes. Take a good long look... 
+Events is where the magic happens. Many server-originated [resourceful pub/sub event's](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub) are triggered on a *subscribed* model, in addition to the usual `Backbone` events. These additional event's open up the possibility to **respond to changes on your model server-side**. The core ethos of this plugin was to get these event's on your models and collections, without spa-ghe-ty-ing your way around `io.socket.on` and the likes. Take a good long look... 
 
 _You can prefix these event identifiers making use of the `eventPrefix` configuration option._
 
@@ -322,7 +329,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  * `promise` A promise resolving the outcome of the socket sync.
  * `options` The options for the socket sync request.
 
-* ### `"subscribed:model"`
+* ### `"subscribed"`
 
  Triggered on your model when it is subscribed to it's model resource event aggregator. 
 

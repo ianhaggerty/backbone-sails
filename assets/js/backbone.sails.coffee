@@ -627,7 +627,7 @@
 				model.listenTo aggregator, "messaged", (e)->
 					model.trigger "#{prefix}messaged", model, e
 
-				model.trigger "#{Sails.config.eventPrefix}subscribed:model", model, modelName
+				model.trigger "#{Sails.config.eventPrefix}subscribed", model, modelName
 				model._sails.subscribed = true
 				defer.resolve()
 
@@ -650,15 +650,25 @@
 		options =         request.options
 		delegateSuccess = request.delegateSuccess
 
+		socketSync =
+			if !_.isUndefined request.instance._sails.socketSync then request.instance._sails.socketSync
+			else if !_.isUndefined request.options?.socketSync then request.options.socketSync
+			else Sails.config.socketSync
+
 		if socketConnected()
 			# send over sockets
 			result = sendingSocketRequest method, instance, options
-		else if (!Sails.config.socketSync && options.socketSync != true) || options.socketSync == false
+		else if !socketSync
 			# delegate to jqXHR
 			result = sendingAjaxRequest method, instance, options
 			.done ->
+				subscribe =
+					if !_.isUndefined request.instance._sails.subscribe then request.instance._sails.subscribe
+					else if !_.isUndefined request.options?.subscribe then request.options.subscribe
+					else Sails.config.subscribe
+
 				# queue up a read socket request to subscribe the model server side
-				if options.subscribe == true || (options.subscribe != false && Sails.config.subscribe == true)
+				if subscribe
 					options = _.clone(options)
 
 					options.success = delegateSuccess
@@ -690,54 +700,60 @@
 # The all important Model class
 	class Sails.Model extends Backbone.Model
 
-		# DRY's up the add remove function's
-		_addRemove: (save, key, model, options)->
+		# 'adds to' an association collection
+		addTo: (key, model, options)->
 			if !isModel model
 				model = new Backbone.Model model
 
 			options = _.assign {}, options, { url: _.result(@, 'url') + '/' + key }
 
-			if save
-				if model.isNew()
-					result = model.save {}, options
-					if options.update
-						that = @
-						result.done ->
-							if _.isArray that.attributes[key]
-								that.attributes[key].push model.attributes
-							else
-								that.attributes[key] = [model.attributes]
-							that.trigger "change", that, options
-							that.trigger "change:#{key}", that, that.attributes[key], options
-				else
-					result = (new $.Deferred()).reject("model is not new, cannot 'add to'").promise()
+			if model.isNew()
+				result = model.save {}, options
+				if options.update
+					that = @
+					result.done ->
+						if _.isArray that.attributes[key]
+							that.attributes[key].push model.attributes
+						else
+							that.attributes[key] = [model.attributes]
+						that.trigger "change", that, options
+						that.trigger "change:#{key}", that, that.attributes[key], options
 			else
-				if !model.isNew()
-					result = model.destroy options
-					if options.update
-						that = @
-						result.done ->
-							if _.isArray (that.attributes[key])
-								_.remove that.attributes[key], (m) ->
-									m.id ==  model.id
-								that.trigger "change", that, options
-								that.trigger "change:#{key}", that, that.attributes[key], options
-				else
-					result = (new $.Deferred()).reject("model is new, cannot 'remove from'").promise()
+				result = (new $.Deferred()).reject("model is not new, cannot 'add to'").promise()
 			result
-
-		# 'adds to' an association collection
-		addTo: (key, model, options)->
-			@_addRemove true, key, model, options
 
 		# 'removes from' an association collection
 		removeFrom: (key, model, options = {})->
-			wrapDelete model, options
-			@_addRemove false, key, model, options
+			if !isModel model
+				model = new Backbone.Model model
 
-		toOne: (key, model) ->
-			@set key, model.id
-			@
+			options = _.assign {}, options, { url: _.result(@, 'url') + '/' + key }
+
+			idAttribute = options.idAttribute || "id"
+
+			wrapDelete model, options
+
+			result = undefined
+			if !model.isNew()
+				result = model.destroy options
+				if options.update
+					that = @
+					result.done ->
+						if _.isArray (that.attributes[key])
+							changed = undefined
+							_.remove that.attributes[key], (m) ->
+								if m[idAttribute] ==  model[idAttribute]
+									changed = true
+									true
+								else
+									false
+							if changed
+								that.trigger "change", that, options
+								that.trigger "change:#{key}", that, that.attributes[key], options
+			else
+				result = (new $.Deferred()).reject("model is new, cannot 'remove from'").promise()
+
+			result
 
 		subscribe: ->
 			subscribingModel @
@@ -881,13 +897,19 @@
 					api
 			api
 
-		constructor: ->
+		constructor: (attrs, options)->
 			super
 
 			@_sails =
 				subscribed: false
 				registered: false
 				query: {}
+
+			if options
+				if !_.isUndefined options.socketSync
+					@_sails.socketSync = options.socketSync
+				if !_.isUndefined options.subscribe
+					@_sails.subscribe = options.subscribe
 
 # The all important collection class
 	class Sails.Collection extends Backbone.Collection
@@ -953,13 +975,19 @@
 
 		model: Sails.Model
 
-		constructor: ->
+		constructor: (models, options)->
 			super
 
 			@_sails =
 				subscribed: false
 				registered: false
 				query: {}
+
+			if options
+				if !_.isUndefined options.socketSync
+					@_sails.socketSync = options.socketSync
+				if !_.isUndefined options.subscribe
+					@_sails.subscribe = options.subscribe
 
 # A very special function. This wraps an existing Collection constructor
 # and returns a corresponding 'associated' collection constructor. The
