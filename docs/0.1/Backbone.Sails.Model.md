@@ -4,21 +4,21 @@
 
 * ## [Methods](#methods)
 
- * ### [`.save( [attrs[key, val]], [options] )`](#saveattrskey-val-options)
+ * ### [`.save([attrs[key, val]], [options])`](#saveattrskey-val-options)
  
- * ### [`.fetch( attrs[key, val], [options] )`](#fetchattrskey-val-options)
+ * ### [`.fetch(attrs[key, val], [options])`](#fetchattrskey-val-options)
  
- * ### [`.destroy( [options] )`](#destroyoptions)
+ * ### [`.destroy([options])`](#destroyoptions)
  
- * ### [`.query( [criteria] )`](#querycriteria)
+ * ### [`.query([criteria])`](#querycriteria)
  
- * ### [`.addTo( key, model [,options] )`](#addtokey-model-options)
+ * ### [`.addTo(key, model [,options])`](#addtokey-model-options)
  
- * ### [`.removeFrom( key, model [,options] )`](#removefromkey-model-options)
+ * ### [`.removeFrom(key, model [,options])`](#removefromkey-model-options)
  
- * ### [`.toOne( key, model )`](#toonekey-model)
+ * ### [`.toOne(key, model)`](#toonekey-model)
  
- * ### [`.subscribe( null )`](#subscribe)
+ * ### [`.subscribe()`](#subscribe)
  
 * ## [Events](#events)
 
