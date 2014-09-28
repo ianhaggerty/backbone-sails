@@ -2,25 +2,25 @@
 
 ***
 
-* ## [Methods](#methods)
+* ## [Methods](#methods-1)
 
- * ### [`.save([attrs[key, val]], [options])`](#saveattrskey-val-options)
+ * ### [`.save([attrs[key, val]], [options])`](#saveattrskey-val-options-1)
  
- * ### [`.fetch(attrs[key, val], [options])`](#fetchattrskey-val-options)
+ * ### [`.fetch(attrs[key, val], [options])`](#fetchattrskey-val-options-1)
  
- * ### [`.destroy([options])`](#destroyoptions)
+ * ### [`.destroy([options])`](#destroyoptions-1)
  
- * ### [`.query([criteria])`](#querycriteria)
+ * ### [`.query([criteria])`](#querycriteria-1)
  
- * ### [`.addTo(key, model [,options])`](#addtokey-model-options)
+ * ### [`.addTo(key, model [,options])`](#addtokey-model-options-1)
  
- * ### [`.removeFrom(key, model [,options])`](#removefromkey-model-options)
+ * ### [`.removeFrom(key, model [,options])`](#removefromkey-model-options-1)
  
- * ### [`.toOne(key, model)`](#toonekey-model)
+ * ### [`.toOne(key, model)`](#toonekey-model-1)
  
- * ### [`.subscribe()`](#subscribe)
+ * ### [`.subscribe()`](#subscribe-1)
  
-* ## [Events](#events)
+* ## [Events](#events-1)
 
  * ### [`"addedTo" (model, socketEvent)`](#addedto)
 
