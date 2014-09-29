@@ -14,7 +14,7 @@
  
 * ## [Events](#events-1)
 
- * ### [`"created" (modelData, socketEvent)`](#created-1)
+ * ### [`"created" (modelData, socketEvent)`](#created)
  
  * ### [`"socketSync" (collection, response, options)`](#socketsync)
   
@@ -59,6 +59,8 @@
 ### @override `fetch, where`
 
 `Backbone.Sails.Collection` is simply a `Backbone.Collection` that fires ordinary `Backbone` events as well as [resourceful pub/sub](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub) events originating from a Sails backend. The `fetch` method have been overridden to attempt to sync over socket's by default, delegating to [`sync`](http://backbonejs.org/#Model-sync) as configured (see the `socketSync` and `subscribe` configuration options).
+
+The default [`model`](http://backbonejs.org/#Collection-model) of a `Backbone.Sails.Collection` is (naturally) a `Backbone.Sails.Model`. It'll work fine with any `Backbone.Model`.
 
 ## Methods
 

@@ -46,48 +46,28 @@
 
 		_.assign Sails.config, config
 
-# Global Backbone.Sails.config configuration object
+# Configuration object
 	Sails.config =
 
-	## Prefix for socket based events on (and only on) Backbone.Sails.Model
-	# and Backbone.Sails.Collection.
-	#
-	# For example, a collection instance will emit a "created" event, when the
-	# model resource referenced through it's url property has an instance created
-	# server side through *another* client socket provided this client socket is
-	# subscribed to that resource (read that last sentence again).
-	#
-	# Collection instances emit many other events (updated, removedFrom, addedTo...)
-	# that names of which may collude with other events registed on a collection.
-	# Setting an event prefix can offset the namespace damage:
-	#
-	# coll.on "created", (newModel)-> @add(newModel)
-	# Backbone.Sails.config.eventPrefix = "socket:"
-	# coll.on "socket:created", (newModel)-> console.
 		eventPrefix: ""
 
-	# `interval` refer's to the time certain operations in the network code wait before
-	# trying again. Increasing the value will mean a little less of a CPU hit client side,
-	# but it will also mean longer times to resolve certain promises/requirements.
-	# Defaults to 2 seconds.
-		interval: 500
+		timeout: (defer) ->
+			if !defer.attempts
+				defer.attempts = 1
+			else
+				defer.attempts += 1
 
-	# `attempts` refer's to the number of times to try something before giving up.
-	# By default it is undefined, which means indefinite polling for certain requirements
-	# client side (promises try to resolve every `interval` milliseconds, and keep on trying
-	# until they are resolved or the client leaves the webpage)
-	#
-	# Setting attempts to a finite number will protect against indefinite polling, but
-	# it will also mean your app is viable to give up on certain requests & therefore,
-	# possibly not achieve realtime commuinication, when it is available.
-		attempts: 20
+			if defer.attempts <= 5
+				return 150
+			else if defer.attempts <= 10
+				return 500
+			else if defer.attempts <= 50
+				return 1000
+			else if defer.attempts <= 100
+				return 4000
+			else
+				return false
 
-	# `query` configures the default values for certain options available to
-	# the public API of Backbone.Sails. At the moment, it only set's the default filter
-	# queries for Backbone.Sails.Collection. These options are easily overridden with
-	# the chainable collection methods `coll.where({ name: { contains: "I" } })`,
-	# `coll.sort("name ASC")`, `coll.limit(5)`, `coll.skip(10)` and finally
-	# `coll.paginate(pageNo, limit)`
 		query:
 			where: ''
 			limit: 30
@@ -105,10 +85,10 @@
 		connectToSocket: (socketClient)->
 
 	# A boolean indicating whether to subscribe instances synced over jqXHR, when available
-		subscribe: false
+		subscribe: true
 
 	# A boolean indicating whether to send all requests over web sockets.
-		socketSync: true
+		socketSync: false
 
 # Generic function used to ascertian whether the the number of attempts for this particular
 # promise has exceeded. Used frequently in the 'looping defer pattern'.
@@ -156,13 +136,11 @@
 				defer.resolve()
 
 			else
-				if maxAttemptsExceeded defer
-					defer.reject()
-					
-				else
+				delay = Sails.config.timeout defer
+				if delay
 					setTimeout ->
 						findingSocketClient(defer)
-					, Sails.config.interval
+					, delay
 
 		defer.promise()
 
@@ -201,11 +179,13 @@
 
 						socketClient.once "connect", connectHandler
 
-						# start polling for a connected status
-						to = setTimeout ->
-							_.remove socketClient.$events.connect, (h) -> h == connectHandler
-							socketConnecting(defer)
-						, Sails.config.interval
+						delay = Sails.config.timeout defer
+						if delay
+							# start polling for a connected status
+							to = setTimeout ->
+								_.remove socketClient.$events.connect, (h) -> h == connectHandler
+								socketConnecting(defer)
+							, delay
 
 		defer.promise()
 
@@ -394,9 +374,11 @@
 				defer.reject()
 
 			else
-				setTimeout ->
-					resolvingRequest(request, defer)
-				, Sails.config.interval
+				delay = Sails.config.timeout defer
+				if delay
+					setTimeout ->
+						resolvingRequest(request, defer)
+					, delay
 
 		defer.promise()
 
