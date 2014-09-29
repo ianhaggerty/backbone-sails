@@ -39,6 +39,11 @@
 	Sails.configure = (config) ->
 		_.assign Sails.config.query, parseQueryObj config.query
 		delete config.query
+
+		if config.eventPrefix?
+			if _.last config.eventPrefix != ':'
+				config.eventPrefix += ':'
+
 		_.assign Sails.config, config
 
 # Global Backbone.Sails.config configuration object
@@ -570,7 +575,7 @@
 				coll.listenTo aggregator, "created", (e) ->
 					coll.trigger "#{prefix}created", e.data, e
 
-				coll.trigger "#{Sails.config.eventPrefix}subscribed:collection", coll, modelName
+				coll.trigger "#{Sails.config.eventPrefix}subscribed", coll, modelName
 				coll._sails.subscribed = true
 				defer.resolve()
 		defer.promise()
@@ -913,7 +918,6 @@
 
 # The all important collection class
 	class Sails.Collection extends Backbone.Collection
-		query: Sails.config.query # defaults
 
 		fetch: (options) ->
 			options = if options then _.clone(options) else {}
@@ -940,11 +944,13 @@
 				options: options
 				delegateSuccess: delegateSuccess
 
+		subscribe: ->
+			subscribingCollection @
+
 		query: (criteria) ->
 			coll = this
 			if criteria
 				coll._sails.query = parseQueryObj criteria
-				return
 
 			api =
 				where: (criteria) ->

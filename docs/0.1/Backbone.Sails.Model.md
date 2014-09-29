@@ -8,7 +8,7 @@
 
  * ### [`.save([attrs[key, val]], [options])`](#saveattrskey-val-options-1)
  
- * ### [`.fetch(attrs[key, val], [options])`](#fetchattrskey-val-options-1)
+ * ### [`.fetch([options])`](#fetchoptions-1)
  
  * ### [`.destroy([options])`](#destroyoptions-1)
  
@@ -111,7 +111,7 @@
  `destroy` will return a `$.Deferred`. If synced over socket's,  the deferred will resolve with parameters `(jwres.body, jwres.statusCode, jwres)` where `jwres` refers to [JSON WebSocket Response](http://sailsjs.org/#/documentation/reference/websockets/sails.io.js/socket.get.html) otherwise the deferred will reject with parameters `(jwres, jwres.statusCode, jwres.body)`. If synced over `jqXHR`, see [$.ajax](http://api.jquery.com/jQuery.ajax/) for details of resolution.
 
 * ### `query([criteria])`
- `query` is a utility method to configure the query parameters sent to the server. For models, it is used to configure the `populate` option when `fetch`'ing on this model. `criteria` can be an object with a `populate` option. Or, if `criteria` is not passed, `query()` will return a chainable query API with the methods `populate`. The `populate` options can be an array, or a string. When calling `populate` from the chainable query API, you can also call it with multiple arguments, each a string representing what you'd like to populate.
+ `query` is a utility method to configure the query parameters sent to the server. For models, it is used to configure the `populate` query parameter when `fetch`'ing on this model. `criteria` can be an object with a `populate` option. Or, if `criteria` is not passed, `query()` will return a chainable query API with the methods `populate`. The `populate` options can be an array, or a string. When calling `populate` from the chainable query API, you can also call it with multiple arguments, each a string representing what you'd like to populate.
 
  **@example**
 
@@ -230,7 +230,7 @@
  ```
 
 ## Events
-Events is where the magic happens. Many server-originated [resourceful pub/sub event's](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub) are triggered on a *subscribed* model, in addition to the usual `Backbone` events. These additional event's open up the possibility to **respond to changes on your model server-side**. The core ethos of this plugin was to get these event's on your models and collections, without spa-ghe-ty-ing your way around `io.socket.on` and the likes. Take a good long look... 
+Events are where the magic happens. Many server-originated [resourceful pub/sub event's](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub) are triggered on a *subscribed* model, in addition to the usual `Backbone` events. These additional event's open up the possibility to **respond to changes on your model server-side**. The core ethos of this plugin was to get these event's on your models and collections, without spa-ghe-ty-ing your way around `io.socket.on` and the likes. Take a good long look... 
 
 _You can prefix these event identifiers making use of the `eventPrefix` configuration option._
 
@@ -239,6 +239,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when an association is [`addedTo`](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishAdd.html)
 
  **@params**
+ 
  * `model` The model that has been added to.
  * `socketEvent` The original socket event as documented [here](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishAdd.html).
 
@@ -247,6 +248,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when an association is [`addedTo`](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishAdd.html). `attribute` in the event identifier, refers to the name of the attribute that was added to (e.g. `users`, `owner`).
 
  **@params**
+ 
  * `model` The model that has been added to.
  * `id` The id of the _model that was added_.
  * `socketEvent` The original socket event as documented [here](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishAdd.html).
@@ -256,6 +258,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when an association is [`removedFrom`](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishRemove.html)
 
  **@params**
+ 
  * `model` The model that has been removed from.
  * `socketEvent` The original socket event as documented [here](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishRemove.html).
 
@@ -264,6 +267,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when an association is [`removedFrom`](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishRemove.html). `attribute` in the event identifier, refers to the name of the attribute that was removed from (e.g. `users`).
 
  **@params**
+ 
  * `model` The model that has been removed from.
  * `id` The id of the _model that was removed_.
  * `socketEvent` The original socket event as documented [here](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishRemove.html).
@@ -273,6 +277,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when the resource it refers to is [destroyed](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishRemove.html). That is, the resource has been deleted server side. **Note**, there is a very similar backbone event `destroy`. This refer's to the model method `destroy` being invoked and (typically) sending a `DELETE` request.
 
  **@params**
+ 
  * `model` The model that has been destroyed (server side at least).
  * `socketEvent` The original socket event as documented [here](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishDestroy.html).
 
@@ -281,6 +286,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when the resource it refers to is [updated](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishUpdate.html).
 
  **@params**
+ 
  * `model` The model that has been updated.
  * `socketEvent` The original socket event as documented [here](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishDestroy.html).
 
@@ -289,6 +295,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when the resource it refers to is [updated](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishUpdate.html).
 
  **@params**
+ 
  * `model` The model that has been updated.
  * `value` The new value of the attribute.
  * `socketEvent` The original socket event as documented [here](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/publishDestroy.html).
@@ -298,6 +305,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when the resource it refers to is [messaged](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/message.html).
 
  **@params**
+ 
  * `model` The model that has been messaged.
  * `socketEvent` The original socket event as documented [here](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/message.html).
 
@@ -307,6 +315,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when it is synced over the socket. This fire's at the same time as Backbone's [`sync`](http://backbonejs.org/#Events-catalog) event
 
  **@params**
+ 
  * `model` The model that has been synced over the socket.
  * `response` The response from the server.
  * `options` The options for the socket sync request.
@@ -316,6 +325,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when socket sync fails for some reason. This fire's at the same time as Backbone's [`error`](http://backbonejs.org/#Events-catalog) event.
 
  **@params**
+ 
  * `model` The model that hasn't been socket synced.
  * `response` The response from the server.
  * `options` The options for the socket sync request.
@@ -325,6 +335,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  Triggered on your model when a socket sync is requested. This fire's at the same time as Backbone's [`request`](http://backbonejs.org/#Events-catalog) event.
 
  **@params**
+ 
  * `model` The model that is requesting a socket sync..
  * `promise` A promise resolving the outcome of the socket sync.
  * `options` The options for the socket sync request.
