@@ -12,6 +12,7 @@
     jQuery: https://github.com/jquery/jquery
     underscore: https://github.com/lodash/lodash/
     sails.io.js: https://github.com/balderdashy/sails.io.js
+    json2.js: https://github.com/douglascrockford/JSON-js/blob/master/json2.js
   ]
 ###
 
@@ -90,16 +91,6 @@
 	# A boolean indicating whether to send all requests over web sockets.
 		socketSync: false
 
-# Generic function used to ascertian whether the the number of attempts for this particular
-# promise has exceeded. Used frequently in the 'looping defer pattern'.
-	maxAttemptsExceeded = (defer) ->
-		defer.attempts = if defer.attempts then defer.attempts + 1 else 1
-		maxAttempts = Sails.config.attempts
-		if _.isUndefined maxAttempts
-			return false
-		if defer.attempts <= maxAttempts
-			return false
-		return true
 # Utility method to map the result of one promise onto another
 	chainPromise = (from, to) ->
 		from.done ->
@@ -166,26 +157,22 @@
 					defer.resolve()
 
 				else
-					if maxAttemptsExceeded defer
-						defer.reject()
-						
-					else
-						to = undefined
+					to = undefined
 
-						# register a listener for a 'connect' event to resolve more immediately
-						connectHandler = ->
-							clearTimeout to
+					# register a listener for a 'connect' event to resolve more immediately
+					connectHandler = ->
+						clearTimeout to
+						socketConnecting(defer)
+
+					socketClient.once "connect", connectHandler
+
+					delay = Sails.config.timeout defer
+					if delay
+						# start polling for a connected status
+						to = setTimeout ->
+							_.remove socketClient.$events.connect, (h) -> h == connectHandler
 							socketConnecting(defer)
-
-						socketClient.once "connect", connectHandler
-
-						delay = Sails.config.timeout defer
-						if delay
-							# start polling for a connected status
-							to = setTimeout ->
-								_.remove socketClient.$events.connect, (h) -> h == connectHandler
-								socketConnecting(defer)
-							, delay
+						, delay
 
 		defer.promise()
 
@@ -345,9 +332,8 @@
 
 		"?" + queries.join("&")
 
-# Augments the url for sync requests - according to the instance type
+# Augments the url for sync requests
 	augmentUrl = (method, instance, options) ->
-		# previousUrl = _.result instance, 'url'
 
 		previousUrl = instance.url
 
@@ -370,15 +356,11 @@
 			defer.resolve()
 
 		request.fail ->
-			if maxAttemptsExceeded defer
-				defer.reject()
-
-			else
-				delay = Sails.config.timeout defer
-				if delay
-					setTimeout ->
-						resolvingRequest(request, defer)
-					, delay
+			delay = Sails.config.timeout defer
+			if delay
+				setTimeout ->
+					resolvingRequest(request, defer)
+				, delay
 
 		defer.promise()
 
@@ -412,7 +394,7 @@
 
 # Tests whether instance is a Backbone.Sails.Collection or a Backbone.Sails.Model
 	isSails = (instance) ->
-		instance._sails
+		!!instance._sails
 
 # Forwards the socket event e to the aggregator specified
 	forwardSocketEvent = (e, aggregator) ->
@@ -557,9 +539,37 @@
 				coll.listenTo aggregator, "created", (e) ->
 					coll.trigger "#{prefix}created", e.data, e
 
-				coll.trigger "#{Sails.config.eventPrefix}subscribed", coll, modelName
+				coll.trigger "#{Sails.config.eventPrefix}subscribed:collection", coll, modelName
 				coll._sails.subscribed = true
 				defer.resolve()
+		defer.promise()
+
+	subscribingAssociatedCollection = (coll, model = coll._sails.model, key = coll._sails.key) ->
+
+		defer = $.Deferred()
+
+		if coll._sails.subscribed
+			defer.resolve()
+
+		else
+			subscribingModel(model).done ->
+				modelName = getModelName(model)
+				aggregator = Sails.Models[modelName][model.id]
+				prefix = Sails.config.eventPrefix
+
+				coll.listenTo aggregator, "addedTo", (e) ->
+					if e.id = coll._sails.model.id && e.attribute == key
+						coll.trigger "#{prefix}addedTo", e.addedId, e
+
+				coll.listenTo aggregator, "removedFrom", (e) ->
+					if e.id = coll._sails.model.id && e.attribute == key
+						coll.trigger "#{prefix}removedFrom", e.removedId, e
+
+				coll._sails.subscribed = true
+
+				defer.resolve()
+				coll.trigger "subscribed:collection", coll, modelName
+
 		defer.promise()
 
 # Conditional logic indicating the model has been subscribed
@@ -614,7 +624,7 @@
 				model.listenTo aggregator, "messaged", (e)->
 					model.trigger "#{prefix}messaged", model, e
 
-				model.trigger "#{Sails.config.eventPrefix}subscribed", model, modelName
+				model.trigger "#{Sails.config.eventPrefix}subscribed:model", model, modelName
 				model._sails.subscribed = true
 				defer.resolve()
 
@@ -897,6 +907,8 @@
 					@_sails.socketSync = options.socketSync
 				if !_.isUndefined options.subscribe
 					@_sails.subscribe = options.subscribe
+				if !_.isUndefined options.query
+					@_sails = parseQueryObj options.query
 
 # The all important collection class
 	class Sails.Collection extends Backbone.Collection
@@ -976,18 +988,21 @@
 					@_sails.socketSync = options.socketSync
 				if !_.isUndefined options.subscribe
 					@_sails.subscribe = options.subscribe
+				if !_.isUndefined options.query
+					@_sails = parseQueryObj options.query
 
 # A very special function. This wraps an existing Collection constructor
 # and returns a corresponding 'associated' collection constructor. The
 # associated collection is constructed with a model instance and a key.
 # POST, DELETES and GETS all then go to the backend via the associated
 # collection resource. PUT goes to the associated model resource.
-	Sails.associated = (Collection)->
+	Sails.Associated = (Collection)->
 		PUT = Collection.prototype.url
 
 		class AssociatedModel extends Collection.prototype.model
 			save: (key, val, options)->
 				if @isNew() # POST /model/id/assoc
+					# will POST to Collection.prototype.model.urlRoot or Collection.url
 					super
 				else
 					url = PUT + '/' + @id
@@ -1000,7 +1015,7 @@
 						# PUT /associatedmodel/associd
 						super key, val, options
 
-			destroy: (options= {}) ->
+			destroy: (options = {}) ->
 				# DELETE to /model/id/assoc
 				wrapDelete @, options
 				super options
@@ -1008,19 +1023,32 @@
 		class AssociatedCollection extends Collection
 			model: AssociatedModel
 
-			constructor: (key, model, options) ->
-				@url = _.result(model, 'url') + '/' + key
+			constructor: (model, key, options) ->
 
-				# forward addedTo and removedFrom events
-				prefix = Sails.config.eventPrefix
-				model.on "#{prefix}addedTo:#{key}", ->
-					@trigger "#{prefix}addedTo", arguments
-				model.on "#{prefix}removedFrom:#{key}", ->
-					@trigger "#{prefix}removedFrom", arguments
+				if model.isNew()
+					idError()
 
+				# attempt to instantiate via populated attribute
 				super model.attributes[key], options
 
+				@_sails = @_sails || {}
+
+				@url = _.result(model, 'url') + '/' + key
+
+				# store an artificial model for internal implementation's sake
+				@_sails.model = new Sails.Model({ id: model.id }, { collection: this })
+				@_sails.key = key
+
+				# set up the 'addedTo' and 'removedFrom' event forwarding
+				subscribingAssociatedCollection @, model, key
+
+				# the models won't be subscribed if instantiated via a populated attribute
+				for model in @models
+					subscribingModel model
+
 		AssociatedCollection
+
+	Sails.associated = Sails.Associated
 
 	Backbone.Sails = Sails
 )(Backbone, $, _)

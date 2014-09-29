@@ -44,7 +44,7 @@
  
  * ### [`"socketRequest" (model, promise, options)`](#socketrequest)
  
- * ### [`"subscribed" (model, modelName)`](#subscribedmodel)
+ * ### [`"subscribed:model" (model, modelName)`](#subscribedmodel)
 
 ***
 
@@ -340,7 +340,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  * `promise` A promise resolving the outcome of the socket sync.
  * `options` The options for the socket sync request.
 
-* ### `"subscribed"`
+* ### `"subscribed:model"`
 
  Triggered on your model when it is subscribed to it's model resource event aggregator. 
 

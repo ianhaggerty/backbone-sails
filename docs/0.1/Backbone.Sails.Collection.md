@@ -22,7 +22,7 @@
   
  * ### [`"socketRequest" (collection, promise, options)`](#socketrequest)
   
- * ### [`"subscribed" (collection, modelName)`](#subscribed)
+ * ### [`"subscribed:collection" (collection, modelName)`](#subscribedcollection)
  
 * ## [Events bubbled from `Backbone.Sails.Model`](#events-bubbled-from-backbonesailsmodel-1)
 
@@ -48,7 +48,7 @@
  
  * ### [`"socketRequest" (model, promise, options)`](#socketrequest-1)
  
- * ### [`"subscribed" (model, modelName)`](#subscribed-1)
+ * ### [`"subscribed:model" (model, modelName)`](#subscribedmodel)
 
 ***
 
@@ -227,7 +227,7 @@ _You can prefix these event identifiers making use of the `eventPrefix` configur
  * `promise` A promise resolving the outcome of the socket sync.
  * `options` The options for the socket sync request.
 
-* ### `"subscribed"`
+* ### `"subscribed:collection"`
 
  Triggered on your collection when it is subscribed to it's resource event aggregator. 
 
@@ -345,11 +345,11 @@ These events are bubbled from model's within the collection.
  * `promise` A promise resolving the outcome of the socket sync.
  * `options` The options for the socket sync request.
 
-* ### `"subscribed"`
+* ### `"subscribed:model"`
 
  Triggered on your model when it is subscribed to it's model resource event aggregator. 
 
  **@params**
  
  * `model` The model that has been subscribed.
- * `modelName` The name or _identifier_ of the model resource that has been subscribed. e.g. `user`.org/#/documentation/reference/websockets/resourceful-pubsub/publishDestroy.html).
+ * `modelName` The name or _identifier_ of the model resource that has been subscribed. e.g. `user`.
