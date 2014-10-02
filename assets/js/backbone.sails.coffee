@@ -132,6 +132,8 @@
 					setTimeout ->
 						findingSocketClient(defer)
 					, delay
+				else
+					timedOut(defer)
 
 		defer.promise()
 
@@ -173,8 +175,11 @@
 							_.remove socketClient.$events.connect, (h) -> h == connectHandler
 							socketConnecting(defer)
 						, delay
+					else
+						timedOut(defer)
 
 		defer.promise()
+
 
 # Forward 'connect' and 'disconnect' events to Backbone.Sails
 	findingSocketClient().done ->
@@ -190,6 +195,12 @@
 # Throws an id related error
 	idError = ->
 		throw new Error 'An "id" property could not be found for a model'
+
+	notNewError = ->
+		throw new Error 'Model cannot be new for this operation'
+
+	timedOut = (defer)->
+		defer.reject "timed out"
 
 # Used to map from Backbone to sails.io.js methods
 	methodMap =
@@ -219,9 +230,10 @@
 
 				options.error? jwres, jwres.statusCode, jwres.body # triggers 'error'
 
-				instance.trigger "#{prefix}socketError", jwres, jwres.statusCode, jwres.body
+				instance.trigger "#{prefix}socketError", instance, res, options
 
 				defer.reject jwres, jwres.statusCode, jwres.body
+
 			else
 				options.success? res, jwres.statusCode, jwres # triggers 'sync'
 
@@ -229,18 +241,15 @@
 
 				defer.resolve res, jwres.statusCode, jwres
 
-				# register & subscribe instances
+				# register & subscribe instances before resolving
 				if isCollection instance
-					registeringCollection(instance).done ->
-						subscribingCollection(instance)
+					subscribingCollection(instance)
 
 					for model in instance.models
-						registeringModel(model).done ->
-							subscribingModel(model)
+						subscribingModel(model)
 
 				else
-					registeringModel(instance).done ->
-						subscribingModel(instance)
+					subscribingModel(instance)
 
 
 		instance.trigger "request", instance, defer.promise(), options
@@ -256,7 +265,7 @@
 		socketConnecting().done ->
 			
 			# augment url before sync (add's filter queries)
-			previousUrl = augmentUrl method, instance
+			previousUrl = augmentUrl method, instance, options
 			
 			# map from backbone verbs to sails.io.js verbs
 			chainPromise sendSocketRequest(method, instance, options), result
@@ -270,7 +279,7 @@
 	sendingAjaxRequest = (method, instance, options)->
 		
 		# augment url as required
-		previousUrl = augmentUrl method, instance
+		previousUrl = augmentUrl method, instance, options
 
 		# sync
 		result = instance.sync method, instance, options
@@ -322,10 +331,15 @@
 		query
 
 # Returns the query string for an instance
-	queryString = (instance) ->
+	queryString = (instance, options) ->
 		queries = []
+		o = {}
 
-		query = _.defaults {}, instance._sails.query, Sails.config.query
+		for key, val of parseQuery
+			if !_.isUndefined options[key]
+				o[key] = parseQuery[key] options[key]
+
+		query = _.defaults o, instance._sails.query, Sails.config.query
 
 		for key, val of query
 			queries.push "#{key}=#{val}"
@@ -340,7 +354,7 @@
 		if method == "read"
 			url = _.result instance, 'url'
 
-			url += queryString instance
+			url += queryString instance, options
 
 			instance.url = url
 
@@ -361,6 +375,8 @@
 				setTimeout ->
 					resolvingRequest(request, defer)
 				, delay
+			else
+				timedOut(defer)
 
 		defer.promise()
 
@@ -402,7 +418,7 @@
 
 # Register's an event aggregator for a collection instance, if necessary
 	registerCollection = (coll)->
-		
+
 		modelName = getModelName coll
 		collections = Sails.Collections
 
@@ -506,10 +522,12 @@
 
 		if modelRegistered(model)
 			defer.resolve()
-		else
+		else if model.id
 			socketConnecting().done ->
 				registerModel(model)
 				defer.resolve()
+		else
+			defer.reject()
 
 		defer.promise()
 
@@ -539,7 +557,7 @@
 				coll.listenTo aggregator, "created", (e) ->
 					coll.trigger "#{prefix}created", e.data, e
 
-				coll.trigger "#{Sails.config.eventPrefix}subscribed:collection", coll, modelName
+				coll.trigger "#{Sails.config.eventPrefix}subscribed", coll, modelName
 				coll._sails.subscribed = true
 				defer.resolve()
 		defer.promise()
@@ -568,7 +586,7 @@
 				coll._sails.subscribed = true
 
 				defer.resolve()
-				coll.trigger "subscribed:collection", coll, modelName
+				coll.trigger "subscribed", coll, modelName
 
 		defer.promise()
 
@@ -624,7 +642,7 @@
 				model.listenTo aggregator, "messaged", (e)->
 					model.trigger "#{prefix}messaged", model, e
 
-				model.trigger "#{Sails.config.eventPrefix}subscribed:model", model, modelName
+				model.trigger "#{Sails.config.eventPrefix}subscribed", model, modelName
 				model._sails.subscribed = true
 				defer.resolve()
 
@@ -636,7 +654,7 @@
 		options.error = (resp) ->
 			if error
 				error instance, resp, options
-				instance.trigger 'error', instance, resp, options
+			instance.trigger 'error', instance, resp, options
 
 # Used internally from model and collection class to attempt a request
 # over sockets, delegating to jqXHR and resyncing over sockets as
@@ -648,32 +666,32 @@
 		delegateSuccess = request.delegateSuccess
 
 		socketSync =
-			if !_.isUndefined request.instance._sails.socketSync then request.instance._sails.socketSync
-			else if !_.isUndefined request.options?.socketSync then request.options.socketSync
+			if !_.isUndefined request.options?.socketSync then request.options.socketSync
+			else if !_.isUndefined request.instance._sails.socketSync then request.instance._sails.socketSync
 			else Sails.config.socketSync
 
 		if socketConnected()
 			# send over sockets
 			result = sendingSocketRequest method, instance, options
-		else if !socketSync
+		else if !socketSync || method == 'delete'
 			# delegate to jqXHR
 			result = sendingAjaxRequest method, instance, options
 			.done ->
 				subscribe =
-					if !_.isUndefined request.instance._sails.subscribe then request.instance._sails.subscribe
-					else if !_.isUndefined request.options?.subscribe then request.options.subscribe
+					if !_.isUndefined request.options?.subscribe then request.options.subscribe
+					else if !_.isUndefined request.instance._sails.subscribe then request.instance._sails.subscribe
 					else Sails.config.subscribe
 
 				# queue up a read socket request to subscribe the model server side
-				if subscribe
+				if subscribe && method != 'delete'
 					options = _.clone(options)
 
 					options.success = delegateSuccess
 
-				resolvingRequest
-					method: 'read'
-					instance: instance
-					options: options
+					resolvingRequest
+						method: 'read'
+						instance: instance
+						options: options
 
 		else
 			# wait for socket connect
@@ -699,6 +717,9 @@
 
 		# 'adds to' an association collection
 		addTo: (key, model, options)->
+			if @isNew()
+				idError()
+
 			if !isModel model
 				model = new Backbone.Model model
 
@@ -716,7 +737,7 @@
 						that.trigger "change", that, options
 						that.trigger "change:#{key}", that, that.attributes[key], options
 			else
-				result = (new $.Deferred()).reject("model is not new, cannot 'add to'").promise()
+				notNewError()
 			result
 
 		# 'removes from' an association collection
@@ -908,7 +929,10 @@
 				if !_.isUndefined options.subscribe
 					@_sails.subscribe = options.subscribe
 				if !_.isUndefined options.query
-					@_sails = parseQueryObj options.query
+					@_sails.query = parseQueryObj options.query
+				else
+					if !_.isUndefined options.populate
+						@_sails.query.populate = parseQuery.populate options.populate
 
 # The all important collection class
 	class Sails.Collection extends Backbone.Collection
@@ -943,40 +967,45 @@
 
 		query: (criteria) ->
 			coll = this
-			if criteria
+			if !_.isUndefined criteria
 				coll._sails.query = parseQueryObj criteria
+				coll
+			else
+				api =
+					where: (criteria) ->
+						coll._sails.query.where = parseQuery.where criteria
+						api
 
-			api =
-				where: (criteria) ->
-					coll._sails.query.where = parseQuery.where criteria
-					api
+					skip: (criteria) ->
+						coll._sails.query.skip = parseQuery.skip criteria
+						api
 
-				skip: (criteria) ->
-					coll._sails.query.skip = parseQuery.skip criteria
-					api
+					sort: (criteria) ->
+						coll._sails.query.sort = parseQuery.sort criteria
+						api
 
-				sort: (criteria) ->
-					coll._sails.query.sort = parseQuery.sort criteria
-					api
+					limit: (criteria) ->
+						coll._sails.query.limit = parseQuery.limit criteria
+						api
 
-				limit: (criteria) ->
-					coll._sails.query.limit = parseQuery.limit criteria
-					api
+					populate: () ->
+						coll._sails.query.populate = parseQuery.populate.apply {}, arguments
+						api
 
-				populate: () ->
-					coll._sails.query.populate = parseQuery.populate.apply {}, arguments
-					api
-
-				paginate: (page, limit) ->
-					api.skip page * limit
-					api.limit limit
-					api
-			api
+					paginate: (page, limit) ->
+						api.skip page * limit
+						api.limit limit
+						api
+				api
 
 		model: Sails.Model
 
 		constructor: (models, options)->
-			super
+			if !_.isArray models
+				options = models
+				super [], options
+			else
+				super
 
 			@_sails =
 				subscribed: false
@@ -989,7 +1018,18 @@
 				if !_.isUndefined options.subscribe
 					@_sails.subscribe = options.subscribe
 				if !_.isUndefined options.query
-					@_sails = parseQueryObj options.query
+					@_sails.query = parseQueryObj options.query
+				else
+					if !_.isUndefined options.limit
+						@_sails.query.limit = parseQuery.limit options.limit
+					if !_.isUndefined options.skip
+						@_sails.query.skip = parseQuery.skip options.skip
+					if !_.isUndefined options.populate
+						@_sails.query.populate = parseQuery.populate options.populate
+					if !_.isUndefined options.sort
+						@_sails.query.sort = parseQuery.sort options.sort
+					if !_.isUndefined options.where
+						@_sails.query.where = parseQuery.where options.where
 
 # A very special function. This wraps an existing Collection constructor
 # and returns a corresponding 'associated' collection constructor. The
@@ -1021,19 +1061,24 @@
 				super options
 
 		class AssociatedCollection extends Collection
-			model: AssociatedModel
+			# model: AssociatedModel
 
 			constructor: (model, key, options) ->
 
 				if model.isNew()
 					idError()
 
+				url = _.result(model, 'url') + '/' + key # associated url for posts and deletes
+
+				# override the url root if there is one
+				@model  = AssociatedModel.extend urlRoot: url
+
 				# attempt to instantiate via populated attribute
 				super model.attributes[key], options
 
 				@_sails = @_sails || {}
 
-				@url = _.result(model, 'url') + '/' + key
+				@url = url
 
 				# store an artificial model for internal implementation's sake
 				@_sails.model = new Sails.Model({ id: model.id }, { collection: this })
