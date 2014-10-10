@@ -1,208 +1,138 @@
-###
-  file: backbone.sails.coffee
-  libary: Backbone.Sails
-
-  copyright: Ian Haggerty
-  author: Ian Haggerty
-  email: iahag001@yahoo.co.uk
-  github: https://github.com/iahag001/Backbone.Sails
-
-  dependencies: [
-    Backbone: https://github.com/jashkenas/backbone
-    jQuery: https://github.com/jquery/jquery
-    underscore: https://github.com/lodash/lodash/
-    sails.io.js: https://github.com/balderdashy/sails.io.js
-    json2.js: https://github.com/douglascrockford/JSON-js/blob/master/json2.js
-  ]
-###
-
-
 ((Backbone, $, _)->
 
-# Global Backbone.Sails object extends Backbone.Events
-	Sails = _.extend {}, Backbone.Events
-
-	# Event aggregators for 'model' resources will be populated here as they come in.
-	# e.g. model({ urlRoot: "/users", id: "1" }) will, upon subscription, register an
-	# event aggregator at Backbone.Sails.Models.users[1]
-	Sails.Models = {}
-
-	# Event aggregators for 'collection' resources will be populated here as they come in
-	# e.g. coll({ url: "/users" }) will, upon subscription, register an evbent aggregator
-	# at Backbone.Sails.Collections.users.
-	Sails.Collections = {}
-
-	# Event aggregators act to forward events from the socket, making using of the 'event identity'
-	# (the respective model name) to the aggregator. Models and collection then `listenTo` that
-	# aggregator for events.
-
-	# Helper function for setting up configuration
-	Sails.configure = (config) ->
-		_.assign Sails.config.query, parseQueryObj config.query
-		delete config.query
-
-		if config.eventPrefix?
-			if _.last config.eventPrefix != ':'
-				config.eventPrefix += ':'
-
-		_.assign Sails.config, config
-
-# Configuration object
-	Sails.config =
-
-		eventPrefix: ""
-
-		timeout: (defer) ->
-			if !defer.attempts
-				defer.attempts = 1
-			else
-				defer.attempts += 1
-
-			if defer.attempts <= 5
-				return 150
-			else if defer.attempts <= 10
-				return 500
-			else if defer.attempts <= 50
-				return 1000
-			else if defer.attempts <= 100
-				return 4000
-			else
-				return false
-
-		query:
-			where: ''
-			limit: 30
-			sort: ''
-			skip: 0
-
-	# If defined, this should be a function which attempts to acquire the socket client
-	# from sails.io.js and return's it. It will be invoked as part of the application
-	# in the networking 
-		findSocketClient: ->
-
-	# If defined, this should be a function which attempts to (re-) acquire a connnection
-	# to a socket client instance. It will be passed the socket client as a first
-	# argument. No return necessary.
-		connectToSocket: (socketClient)->
-
-	# A boolean indicating whether to subscribe instances synced over jqXHR, when available
-		subscribe: true
-
-	# A boolean indicating whether to send all requests over web sockets.
-		socketSync: false
-
-# Utility method to map the result of one promise onto another
-	chainPromise = (from, to) ->
-		from.done ->
-			to.resolve.apply to, arguments
-		.fail ->
-			to.reject.apply to, arguments
-
-# References the socket client, when it is found. The socket client is typically
-# located at the io.socket global exposed by sails.io.js.
 	socketClient = undefined
 
-# Logic to attempt to find the socket
-	findSocketClient = ->
-		
-		if io.socket && io.socket.socket
-			socketClient = io.socket
-			
-		else
-			socketClient = Sails.config.findSocketClient()
+	Sails = {}
 
-# Conditional logic to determine if the socket client has been found
-	socketClientFound = ->
-		socketClient && socketClient.socket
+	Sails.Models = {}
 
-# Promises the socket client is available
-	findingSocketClient = (defer = $.Deferred())->
-		if socketClientFound()
-			defer.resolve()
+	Sails.config =
+		eventPrefix: ""
+		populate: false
+		where: false
+		limit: 30
+		sort: false
+		skip: 0
+		sync: ['socket', 'ajax']
+		mutate: false
+		timeout: false
+		poll: 50
+		client: -> io.socket
+		promise: (promise)-> promise
 
-		else
-			findSocketClient()
+	keys =
+		filter: ['where', 'sort', 'skip', 'limit']
+		model: ['populate', 'sync']
+		collection: ['populate', 'sync', 'where', 'sort', 'skip', 'limit']
+		messageAction: '_action'
 
-			if socketClientFound()
-				defer.resolve()
+	Sails.configure = (config) ->
+		mapConfig(config)
 
+	mapConfig = (config) ->
+		for key, val of config
+			if parseConfig[key]?
+				Sails.config[key] = parseConfig[key] val
 			else
-				delay = Sails.config.timeout defer
-				if delay
-					setTimeout ->
-						findingSocketClient(defer)
-					, delay
-				else
-					timedOut(defer)
+				Sails.config[key] = val
 
-		defer.promise()
-
-# Logic to attempt connect/reconnect to socket
-	connectSocket = ->
-		Sails.config.connectToSocket(socketClient)
-
-# Conditional logic to determine whether the socketClient has connected
-	socketConnected = ->
-		socketClient?.socket?.connected
-
-# Promises the socket is connected
-	socketConnecting = (defer = $.Deferred())->
-		# socket client must be available before attempting connect
-		findingSocketClient().done ->
-			if socketConnected()
-				defer.resolve()
-
+	parseConfig =
+		eventPrefix:  (prefix) ->
+			if _.isString prefix
+				# not empty and no double dot
+				if prefix.length && _.last prefix != ':'
+					prefix += ':' # then add one
+				return prefix
 			else
-				connectSocket()
+				throw new Error "config.eventPrefix should be a string"
 
-				if socketConnected()
-					defer.resolve()
+	modelNameError = ->
+		throw new Error "A model name is required"
 
-				else
-					to = undefined
-
-					# register a listener for a 'connect' event to resolve more immediately
-					connectHandler = ->
-						clearTimeout to
-						socketConnecting(defer)
-
-					socketClient.once "connect", connectHandler
-
-					delay = Sails.config.timeout defer
-					if delay
-						# start polling for a connected status
-						to = setTimeout ->
-							_.remove socketClient.$events.connect, (h) -> h == connectHandler
-							socketConnecting(defer)
-						, delay
-					else
-						timedOut(defer)
-
-		defer.promise()
-
-
-# Forward 'connect' and 'disconnect' events to Backbone.Sails
-	findingSocketClient().done ->
-		socketClient.on "connect", ->
-			Sails.trigger "connect", arguments
-		socketClient.on "disconnect", ->
-			Sails.trigger "disconnect", arguments
-
-# Throws a url related error
 	urlError = ->
 		throw new Error 'A "url" property or function must be specified'
 
-# Throws an id related error
 	idError = ->
-		throw new Error 'An "id" property could not be found for a model'
+		throw new Error 'An "id" property must be specified'
 
-	notNewError = ->
-		throw new Error 'Model cannot be new for this operation'
+	clientNotFoundError = ->
+		throw new Error 'A socket client could not be found. Consider revising Sails.config.client'
 
-	timedOut = (defer)->
-		defer.reject "timed out"
+	timeoutError = (msg)->
+		throw new Error msg
 
-# Used to map from Backbone to sails.io.js methods
+	# promise utility
+	promise =
+		chain: (from, to) ->
+			from.then ->
+				to.resolve.apply to, arguments
+			from.fail ->
+				to.reject.apply to, arguments
+		timeout: (defer) ->
+			timeout = Sails.config.timeout
+			if timeout
+				to = setTimeout ->
+					defer.reject "Timed out after #{timeout}ms"
+				, timeout
+				defer.always ->
+					clearTimeout to
+			defer
+		pollFor: (boolF, defer = $.Deferred())->
+			if boolF()
+				return defer.resolve()
+
+			if !boolF.polling?
+				boolF.polling = defer
+				defer.always ->
+					boolF.polling = null
+
+			setTimeout ->
+				promise.pollFor boolF, boolF.polling
+			, Sails.config.poll
+
+			return boolF.polling
+		wrap: (promise)-> Sails.config.promise(promise)
+
+	configPrefix = '_config_'
+	getConfig = (key, options, instance) ->
+		if options[key]?                      # request level
+			options[key]
+		else if instance[configPrefix + key]? # instance level
+			instance[configPrefix + key]
+		else if instance.config?[key]?        # constructor level
+			instance.config[key]
+		else Sails.config[key]                # global level
+
+	isModel = (instance) ->
+		instance instanceof Backbone.Model
+
+	isCollection = (instance) ->
+		instance instanceof Backbone.Collection
+
+	isAssociated = (instance) ->
+		Boolean instance.associated
+
+	modelName = (instance) ->
+		instance.result(instance, 'modelName')
+
+	clientFound = ->
+		Sails.config.client().socket?
+
+	# poll indefinitely for a (real) client
+	promise.pollFor(clientFound).done ->
+		socketClient = Sails.config.client()
+	setTimeout ->
+		if !clientFound() then clientNotFoundError()
+	, 5000
+
+	socketConnected = ->
+		socketClient?.socket?.connected
+
+	socketConnecting = ->
+		promise.timeout(promise.pollFor(socketConnected))
+		.fail(timeoutError)
+		.promise()
+
 	methodMap =
 		create: 'post'
 		read: 'get'
@@ -210,445 +140,120 @@
 		patch: 'put'
 		delete: 'delete'
 
-# Simulates a jqXHR request through websockets
-	sendSocketRequest = (method, instance, options) ->
-
+	sendSocketRequest = (method, instance, options)->
 		defer = new $.Deferred()
-
-		prefix = Sails.config.eventPrefix
-
 		url = options.url || _.result instance, 'url' || urlError
+		method = options.method?.toLowerCase() || methodMap[method]
 
-		if isCollection instance
-			payload = undefined # all info in filter query parameters
+		payload = if options.payload
+			options.payload
+		else if isCollection instance
+			undefined
 		else
 			payload = instance.attributes
 
-
-		socketClient[methodMap[method]] url, payload, (res, jwres)->
-			if res.error || jwres.statusCode != 200
+		socketClient[method] url, payload, (res, jwres)->
+			if jwres.statusCode >= 400
 
 				options.error? jwres, jwres.statusCode, jwres.body # triggers 'error'
-
-				instance.trigger "#{prefix}socketError", instance, res, options
-
 				defer.reject jwres, jwres.statusCode, jwres.body
 
 			else
 				options.success? res, jwres.statusCode, jwres # triggers 'sync'
-
-				instance.trigger "#{prefix}socketSync", instance, res, options
-
 				defer.resolve res, jwres.statusCode, jwres
 
-				# register & subscribe instances before resolving
-				if isCollection instance
-					subscribingCollection(instance)
-
-					for model in instance.models
-						subscribingModel(model)
-
-				else
-					subscribingModel(instance)
-
-
 		instance.trigger "request", instance, defer.promise(), options
-		instance.trigger "#{prefix}socketRequest", instance, defer.promise(), options
 
 		defer.promise()
 
-# Promises a simulated jqXHR socket request
 	sendingSocketRequest = (method, instance, options) ->
 		result = $.Deferred()
-		
+
 		# check for connection
 		socketConnecting().done ->
-			
-			# augment url before sync (add's filter queries)
-			previousUrl = augmentUrl method, instance, options
-			
-			# map from backbone verbs to sails.io.js verbs
-			chainPromise sendSocketRequest(method, instance, options), result
 
-			# restore the original url immediately
-			instance.url = previousUrl
+			# augment the url before request
+			augmentUrl method, instance, options
+
+			# make request
+			promise.chain sendSocketRequest(method, instance, options), result
+
+		.fail result.reject
 
 		result
 
-# Promises a request over jqXHR, this delegates to Backbone.sync
 	sendingAjaxRequest = (method, instance, options)->
-		
-		# augment url as required
-		previousUrl = augmentUrl method, instance, options
 
-		# sync
+		# augment url before request
+		augmentUrl method, instance, options
+
+		# make the request
 		result = instance.sync method, instance, options
 
-		# restore url immediately
-		instance.url = previousUrl
-
 		result
+
+	augmentUrl = (method, instance, options) ->
+
+		url = options.url || _.result instance, 'url'
+
+		if isCollection instance
+			url += queryString instance, options, ['where', 'sort', 'skip', 'limit', 'populate']
+		else if method != 'delete'
+			url += queryString instance, options, ['populate']
+
+		options.url = url
 
 	parseQuery =
 		where: (criteria) ->
 			if _.isObject criteria
 				JSON.stringify criteria
-			else if _.isString criteria
-				criteria
 			else
-				throw new Error "query.where expects a string or an object"
+				criteria
 		sort: (criteria) ->
 			if _.isObject criteria
 				JSON.stringify criteria
-			else if _.isString criteria
-				criteria
 			else
-				throw new Error "query.sort expects a string or an object"
-		limit: (criteria) ->
-			if _.isNumber criteria
 				criteria
-			else
-				throw new Error "query.limit expects a number"
-		skip: (criteria) ->
-			if _.isNumber criteria
-				criteria
-			else
-				throw new Error "Backbone.Sails: skip expects a number"
+		skip: (criteria) -> criteria
+		limit: (criteria) -> criteria
 		populate: (criteria) ->
-			args = _(arguments)
-			if args.length > 1
-				args.join ','
-			else if _.isArray criteria
+			if _.isArray criteria
 				criteria.join ','
-			else if _.isString criteria
-				criteria
 			else
-				throw new Error "query.populate expects a string"
+				# split by space, remove empties and join
+				_.filter(criteria.split(' '), Boolean).join(',')
 
-	parseQueryObj = (query) ->
-		for key, val of query
-			query[key] = parseQuery[key] val
-		query
+	queryString = (instance, options, keys) ->
 
-# Returns the query string for an instance
-	queryString = (instance, options) ->
 		queries = []
-		o = {}
+		parseQuery = parseQuery
 
-		for key, val of parseQuery
-			if !_.isUndefined options[key]
-				o[key] = parseQuery[key] options[key]
+		for key in keys
+			query = getConfig key, options, instance
+			if query != false
+				queries.push "#{key}=#{parseQuery[key](query)}"
 
-		query = _.defaults o, instance._sails.query, Sails.config.query
+		if queries.length
+			'?' + queries.join '&'
+		else ''
 
-		for key, val of query
-			queries.push "#{key}=#{val}"
+	register = (modelName, modelId) ->
+		if !Sails.Models[modelName]
+			Sails.Models[modelName] = _.extend {}, Backbone.Events
 
-		"?" + queries.join("&")
+			Sails.Models[modelName].handler = (e) ->
+				if e.verb == 'created' # collection
+					Sails.Models[modelName].trigger e.verb, e
+				else if Sails.Models[modelName][e.id] # model
+					Sails.Models[modelName][e.id].trigger e.verb, e
 
-# Augments the url for sync requests
-	augmentUrl = (method, instance, options) ->
-
-		previousUrl = instance.url
-
-		if method == "read"
-			url = _.result instance, 'url'
-
-			url += queryString instance, options
-
-			instance.url = url
-
-		# return the previous url
-		previousUrl
-
-# Promises resolving a request through the socket
-	resolvingRequest = (request, defer = $.Deferred())->
-
-		request = sendingSocketRequest request.method, request.instance, request.options
-
-		request.done ->
-			defer.resolve()
-
-		request.fail ->
-			delay = Sails.config.timeout defer
-			if delay
-				setTimeout ->
-					resolvingRequest(request, defer)
-				, delay
-			else
-				timedOut(defer)
-
-		defer.promise()
-
-# Returns the 'model name' for a model or collection. This is assumed to be the first set of
-# characters between the leading slash on a url and the second slash or question mark.
-# e.g.
-# '/user/' has modelname 'user'
-# '/tags/1' has modelname 'tags'
-# '/user?sort=name ASC' has model name 'user'
-# This model name is used as the *event identity* for resourceful pub/sub events on the server side
-# It is utterly critical this correct - in line with the sails conventions.
-# See http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub
-	getModelName = (instance) ->
-		if instance._sails.modelName
-			return instance._sails.modelName
-
-		url = _.result(instance, 'url')
-
-		if !url
-			urlError()
-
-		instance._sails.modelName = _.remove(url.split('/'), (c)->c)[0].split('?')[0]
-
-# Tests whether an instance is a collection
-	isCollection = (instance) ->
-		instance instanceof Backbone.Collection
-
-# Test whether an instance is a model
-	isModel = (instance) ->
-		instance instanceof Backbone.Model
-
-# Tests whether instance is a Backbone.Sails.Collection or a Backbone.Sails.Model
-	isSails = (instance) ->
-		!!instance._sails
-
-# Forwards the socket event e to the aggregator specified
-	forwardSocketEvent = (e, aggregator) ->
-		aggregator.trigger "#{e.verb}", e
-
-# Register's an event aggregator for a collection instance, if necessary
-	registerCollection = (coll)->
-
-		modelName = getModelName coll
-		collections = Sails.Collections
-
-		# set up modelname namespace if not exist
-		# register a socket-collection handler for this modelname
-		if  !collections[modelName]
-			
-			collections[modelName] = _.extend {}, Backbone.Events
-
-			# keep reference to handler
-			collections[modelName]._sails =
-				handler: (e) ->
-					forwardSocketEvent(e, collections[modelName])
-
-			socketClient.on modelName, collections[modelName]._sails.handler
-
-			# Tell Backbone.Sails this collection has been registered
-			Backbone.Sails.trigger "registered:collection", modelName, collections[modelName]
-
-		coll._sails.registered = true
-
-# Conditional logic indicating this collection has been registered
-# Note: 'collection' in this context refer's to an individual collection resource
-# on the server side, NOT an individual collection object
-	collectionRegistered = (coll) ->
-		if coll._sails.registered
-			return true
-
-		modelName = getModelName coll
-
-		coll && modelName &&
-		(handler = Sails.Collections[modelName]?._sails?.handler) &&
-		(handlers = socketClient.$events[modelName]) &&
-		(if _.isArray(handlers) then _.contains handlers, handler else handler == handlers) &&
-
-		# if we got all the way here, the collection was registered through another object
-		(coll._sails.registered = true)
-
-# Promises registering a collection resource
-	registeringCollection = (coll, defer = $.Deferred())->
-
-		if collectionRegistered(coll)
-			defer.resolve()
-		else
 			socketConnecting().done ->
-				registerCollection(coll)
-				defer.resolve()
+				socketClient.on modelName, Sails.Models[modelName].handler
 
-		defer.promise()
+		if modelId?
+			if !Sails.Models[modelName][modelId]
+				Sails.Models[modelName][modelId] = _.extend {}, Backbone.Events
 
-# Register's an event aggregator for a model resource, if necessary
-	registerModel = (model) ->
-		
-		if _.isUndefined model.id # not yet synced, cannot register without id
-			idError()
-
-		modelName = getModelName model
-		models = Sails.Models
-
-	# set up modelname namespace if not exist
-		if !models[modelName]
-			
-			models[modelName] = {}
-
-	# register a socket-model handler if not exist
-		if !models[modelName]._sails?.handler
-			
-			# keep reference to handler
-			models[modelName]._sails =
-				handler: (e) ->
-					if models[modelName][e.id]
-						forwardSocketEvent(e, models[modelName][e.id])
-
-
-			socketClient.on modelName, models[modelName]._sails.handler
-
-			Backbone.Sails.trigger "registered:model", modelName, models[modelName]
-
-		model._sails.registered = true
-
-# Conditional logic to indicate whether a model has been registered
-# Note: 'model' in this context refer's to an individual model resource
-# on the server side, NOT an individual model object
-	modelRegistered = (model)->
-		if model._sails.registered
-			return true
-
-		modelName = getModelName model
-
-		model && model.id && modelName &&
-		Sails.Models[modelName]?[model.id]? &&
-		(handler = Sails.Models[modelName]._sails?.handler) &&
-		(handlers = socketClient.$events[modelName]) &&
-		(if _.isArray(handlers) then _.contains handlers, handler else handler == handlers) &&
-
-		# if we got all the way here, the model was registered through another object
-		(model._sails.registered = true)
-
-# Promises registering an event aggregator for a model
-	registeringModel = (model, defer = $.Deferred())->
-
-		if modelRegistered(model)
-			defer.resolve()
-		else if model.id
-			socketConnecting().done ->
-				registerModel(model)
-				defer.resolve()
-		else
-			defer.reject()
-
-		defer.promise()
-
-# Conditional logic indicating the collection has been subscribed
-	collectionSubscribed = (coll)->
-		if coll._sails.subscribed
-			return true
-
-		coll._listeningTo &&
-			_.toArray(coll._listeningTo).indexOf(Sails.Collections[getModelName(coll)]) != -1 &&
-		(coll._sails.subscribed = true)
-
-# Promises subscribing a collection to it's relevant aggregator
-	subscribingCollection = (coll) ->
-		
-		defer = $.Deferred()
-
-		if collectionSubscribed(coll)
-			defer.resolve()
-
-		else
-			registeringCollection(coll).done ->
-				modelName = getModelName(coll)
-				aggregator = Sails.Collections[modelName]
-				prefix = Sails.config.eventPrefix
-
-				coll.listenTo aggregator, "created", (e) ->
-					coll.trigger "#{prefix}created", e.data, e
-
-				coll.trigger "#{Sails.config.eventPrefix}subscribed", coll, modelName
-				coll._sails.subscribed = true
-				defer.resolve()
-		defer.promise()
-
-	subscribingAssociatedCollection = (coll, model = coll._sails.model, key = coll._sails.key) ->
-
-		defer = $.Deferred()
-
-		if coll._sails.subscribed
-			defer.resolve()
-
-		else
-			subscribingModel(model).done ->
-				modelName = getModelName(model)
-				aggregator = Sails.Models[modelName][model.id]
-				prefix = Sails.config.eventPrefix
-
-				coll.listenTo aggregator, "addedTo", (e) ->
-					if e.id = coll._sails.model.id && e.attribute == key
-						coll.trigger "#{prefix}addedTo", e.addedId, e
-
-				coll.listenTo aggregator, "removedFrom", (e) ->
-					if e.id = coll._sails.model.id && e.attribute == key
-						coll.trigger "#{prefix}removedFrom", e.removedId, e
-
-				coll._sails.subscribed = true
-
-				defer.resolve()
-				coll.trigger "subscribed", coll, modelName
-
-		defer.promise()
-
-# Conditional logic indicating the model has been subscribed
-	modelSubscribed = (model)->
-		if model._sails.subscribed
-			return true
-
-		model._listeningTo &&
-		_.toArray(model._listeningTo).indexOf(Sails.Models[getModelName(model)][model.id]) != -1 && (model._sails.subscribed = true)
-
-# Promises a subscribing a model to it's relevant aggregator
-	subscribingModel = (model) ->
-
-		defer = $.Deferred()
-
-		if modelSubscribed(model)
-			defer.resolve()
-
-		else
-			registeringModel(model).done ->
-				models = Sails.Models
-				modelName = getModelName(model)
-
-				# create an aggregator for this specific model instance
-				if !models[modelName][model.id]
-					models[modelName][model.id] = _.extend {}, Backbone.Events
-
-				aggregator = models[modelName][model.id]
-				prefix = Sails.config.eventPrefix
-
-				model.listenTo aggregator, "addedTo", (e)->
-					model.trigger "#{prefix}addedTo", model, e
-					model.trigger "#{prefix}addedTo:#{e.attribute}", model, e.addedId, e
-
-				model.listenTo aggregator, "removedFrom", (e)->
-					model.trigger "#{prefix}removedFrom", model, e
-					model.trigger "#{prefix}removedFrom:#{e.attribute}", model, e.removedId, e
-
-				model.listenTo aggregator, "destroyed", (e)->
-					model.trigger "#{prefix}destroyed", model, e
-
-				model.listenTo aggregator, "updated", (e)->
-					# do some dirty checking
-					changed = false
-					for attribute, val of e.data
-						if model.get(attribute) != val
-							model.trigger "#{prefix}updated:#{attribute}", model, val, e
-							changed = true
-					if changed
-						model.trigger "#{prefix}updated", model, e
-
-				model.listenTo aggregator, "messaged", (e)->
-					model.trigger "#{prefix}messaged", model, e
-
-				model.trigger "#{Sails.config.eventPrefix}subscribed", model, modelName
-				model._sails.subscribed = true
-				defer.resolve()
-
-		defer.promise()
-
-# from Backbone
 	wrapError = (instance, options) ->
 		error = options.error
 		options.error = (resp) ->
@@ -656,55 +261,7 @@
 				error instance, resp, options
 			instance.trigger 'error', instance, resp, options
 
-# Used internally from model and collection class to attempt a request
-# over sockets, delegating to jqXHR and resyncing over sockets as
-# configured through `socketSync` and `subscribe`
-	attemptRequest = (request)->
-		method =          request.method
-		instance =        request.instance
-		options =         request.options
-		delegateSuccess = request.delegateSuccess
-
-		socketSync =
-			if !_.isUndefined request.options?.socketSync then request.options.socketSync
-			else if !_.isUndefined request.instance._sails.socketSync then request.instance._sails.socketSync
-			else Sails.config.socketSync
-
-		if socketConnected()
-			# send over sockets
-			result = sendingSocketRequest method, instance, options
-		else if !socketSync || method == 'delete'
-			# delegate to jqXHR
-			result = sendingAjaxRequest method, instance, options
-			.done ->
-				subscribe =
-					if !_.isUndefined request.options?.subscribe then request.options.subscribe
-					else if !_.isUndefined request.instance._sails.subscribe then request.instance._sails.subscribe
-					else Sails.config.subscribe
-
-				# queue up a read socket request to subscribe the model server side
-				if subscribe && method != 'delete'
-					options = _.clone(options)
-
-					options.success = delegateSuccess
-
-					resolvingRequest
-						method: 'read'
-						instance: instance
-						options: options
-
-		else
-			# wait for socket connect
-			result = $.Deferred()
-			socketConnecting().done ->
-				chainPromise sendingSocketRequest(method, instance, options), result
-
-		result
-
-# $.ajax expects the model resource to be located by id in url
-# however delete requests to associations require an id parameter
-# in the body, this function wraps the options to do just that
-	wrapDelete = (model, options)->
+	wrapId = (model, options)->
 		payload = {}
 		payload[model.idAttribute || "id"] = model.id
 		_.assign options,
@@ -712,69 +269,197 @@
 			contentType: 'application/json'
 			data: JSON.stringify(payload)
 
-# The all important Model class
+	wrapPayload = (payload, options)->
+		_.assign options,
+			contentType: 'application/json'
+			data: JSON.stringify(payload)
+			payload: _.clone payload
+
+	attemptRequest = (request)->
+		method          = request.method
+		instance        = request.instance
+		options         = request.options
+		delegateSuccess = request.delegateSuccess
+
+		sync = getConfig 'sync', options, instance
+		socketSync = _.contains sync, 'socket'
+		ajaxSync = _.contains sync, 'ajax'
+
+		options = _.clone options
+
+		if isAssociated instance
+			options.populate = false
+
+		if socketSync && socketConnected()
+			# if socket available, go for it
+			options.sync = "socket"
+			result = sendingSocketRequest method, instance, options
+
+		else if ajaxSync || method == 'delete'
+			# delegate to ajax
+			options.sync = "ajax"
+			result = sendingAjaxRequest method, instance, options
+
+			if socketSync && method != 'delete'
+				# server-subscribe the instance
+				result.done ->
+					options = _.clone(options)
+					options.success = delegateSuccess || ->
+					options.method = 'GET'
+					options.sync = "socket"
+					sendingSocketRequest method, instance, options
+
+		else
+			# wait for socket connect
+			options.sync = "socket"
+			result = sendingSocketRequest method, instance, options
+
+		result
+
+	# utility method for model and collection
+	configure = (key, val) ->
+		# instance level config
+		if _.isString key
+			@[configPrefix + key] = val
+		else
+			for k, v of key
+				@[configPrefix + k] = v
+		@
+
 	class Sails.Model extends Backbone.Model
 
-		# 'adds to' an association collection
-		addTo: (key, model, options)->
+		query: configure
+		configure: configure
+
+		message: (action, data = {}, options = {}) ->
+			if _.isObject action
+				options = data
+				data = action
+			else
+				data[keys.messageAction] = action
+
+			options.url = "/#{@modelName}/message/#{@id}"
+
+			message = new FakeModel data
+			message.save {}, options # post a message
+
+		addTo: (key, model, options = {})->
 			if @isNew()
 				idError()
 
 			if !isModel model
-				model = new Backbone.Model model
+				model = new FakeModel model
 
-			options = _.assign {}, options, { url: _.result(@, 'url') + '/' + key }
+			options.url = _.result(@, 'url') + '/' + key
+
+			if !model.isNew()
+				wrapId model, options
+				options.method = 'POST' # POST a new association
+
+			promise.wrap model.save({}, options)
+
+		removeFrom: (key, model, options = {}) ->
+			if @isNew()
+				idError()
+
+			if !isModel model
+				model = new FakeModel model
 
 			if model.isNew()
-				result = model.save {}, options
-				if options.update
-					that = @
-					result.done ->
-						if _.isArray that.attributes[key]
-							that.attributes[key].push model.attributes
-						else
-							that.attributes[key] = [model.attributes]
-						that.trigger "change", that, options
-						that.trigger "change:#{key}", that, that.attributes[key], options
+				idError()
+
+			options.url = _.result(@, 'url') + '/' + key
+
+			wrapId model, options
+
+			promise.wrap model.destroy(options)
+
+		destroy: (options) ->
+			options = if options then _.clone(options) else {}
+			model = this;
+			success = options.success;
+
+			destroy = ->
+				model.trigger 'destroy', model, model.collection, options
+
+			options.success = (resp) ->
+				if (options.wait || model.isNew()) then destroy()
+				if (success) then success(model, resp, options);
+				if (!model.isNew()) then model.trigger('sync', model, resp, options)
+
+			if (this.isNew())
+				options.success()
+				return false
+
+			wrapError(this, options);
+
+			result = attemptRequest
+				method: 'delete'
+				instance: this
+				options: options
+
+			if (!options.wait) then destroy()
+
+			promise.wrap result
+
+		save: (key, val, options) ->
+			# this is mostly backbone, except for 'delegateSuccess'
+			attributes = @attributes
+			if key == null || typeof key == 'object'
+				attrs = key
+				options = val
 			else
-				notNewError()
-			result
+				(attrs = {})[key] = val
 
-		# 'removes from' an association collection
-		removeFrom: (key, model, options = {})->
-			if !isModel model
-				model = new Backbone.Model model
+			options = _.extend {validate: true}, options
 
-			options = _.assign {}, options, { url: _.result(@, 'url') + '/' + key }
-
-			idAttribute = options.idAttribute || "id"
-
-			wrapDelete model, options
-
-			result = undefined
-			if !model.isNew()
-				result = model.destroy options
-				if options.update
-					that = @
-					result.done ->
-						if _.isArray (that.attributes[key])
-							changed = undefined
-							_.remove that.attributes[key], (m) ->
-								if m[idAttribute] ==  model[idAttribute]
-									changed = true
-									true
-								else
-									false
-							if changed
-								that.trigger "change", that, options
-								that.trigger "change:#{key}", that, that.attributes[key], options
+			if attrs && !options.wait
+				if !this.set(attrs, options) then return false
 			else
-				result = (new $.Deferred()).reject("model is new, cannot 'remove from'").promise()
+				if !this._validate(attrs, options) then return false
 
-			result
+			if attrs && options.wait
+				@attributes = _.extend {}, attributes, attrs
 
-		subscribe: ->
-			subscribingModel @
+			if _.isUndefined options.parse then options.parse = true
+			model = this;
+			success = options.success;
+			options.success = (resp) ->
+				model.attributes = attributes
+				serverAttrs = model.parse resp, options
+				if options.wait then serverAttrs = _.extend attrs || {}, serverAttrs
+				if _.isObject serverAttrs && !options.suppress && !model.set serverAttrs, options
+					return false
+				success? model, resp, options
+				model.trigger 'sync', model, resp, options
+
+			wrapError this, options
+
+			method = if @isNew()
+				'create'
+			else if options.patch
+				'patch'
+			else
+				'update'
+			if method == 'patch' then options.attrs = attrs
+
+			delegateSuccess = (resp) ->
+				model.attributes = attributes
+				serverAttrs = model.parse resp, options
+				if options.wait then serverAttrs = _.extend attrs || {}, serverAttrs
+				if _.isObject serverAttrs && !options.suppress && !model.set serverAttrs, options
+					return false
+				model.trigger 'sync', model, resp, options
+
+			result = attemptRequest
+				method: method
+				instance: model
+				options: options
+				delegateSuccess: delegateSuccess
+
+			if attrs && options.wait then @attributes = attributes
+
+			promise.wrap result
 
 		fetch: (options) ->
 			options = if options then _.clone(options) else {}
@@ -795,151 +480,145 @@
 			wrapError(this, options)
 
 			delegateSuccess = (resp) ->
+				# update state on delegate
 				if !model.set model.parse(resp, options), options
 					return false
 				model.trigger 'sync', model, resp, options
 
-			attemptRequest
+			result = attemptRequest
 				method: 'read'
 				instance: model
 				options: options
 				delegateSuccess: delegateSuccess
 
-		save: (key, val, options) ->
-			attributes = @attributes
-			if key == null || typeof key == 'object'
-				attrs = key
-				options = val
-			else
-				(attrs = {})[key] = val
+			promise.wrap result
 
-			options = _.extend {validate: true}, options
-
-			# If we're not waiting and attributes exist, save acts as
-			# `set(attr).save(null, opts)` with validation. Otherwise,
-			# check if the model will be valid when the attributes, if
-			# any, are set.
-			if attrs && !options.wait
-				if !this.set(attrs, options) then return false
-			else
-				if !this._validate(attrs, options) then return false
-
-			# Set temporary attributes if `{wait: true}`
-			if attrs && options.wait
-				@attributes = _.extend {}, attributes, attrs
-
-			# After a successful server-side save, the client is (optionally)
-			# updated with the server-side state.
-			if _.isUndefined options.parse then options.parse = true
-			model = this;
-			success = options.success;
-			options.success = (resp) ->
-				# ensure the attributes are restored during synchronous saves
-				model.attributes = attributes
-				serverAttrs = model.parse resp, options
-				if options.wait then serverAttrs = _.extend attrs || {}, serverAttrs
-				if _.isObject serverAttrs && !model.set serverAttrs, options
-					return false
-				success? model, resp, options
-				model.trigger 'sync', model, resp, options
-
-			wrapError this, options
-
-			method = if @isNew() then 'create' else (if options.patch then 'patch' else 'update')
-			if method == 'patch' then options.attrs = attrs
-
-			delegateSuccess = (resp) ->
-				# same as above, but no callback to user supplied 'success'
-				model.attributes = attributes
-				serverAttrs = model.parse resp, options
-				if options.wait then serverAttrs = _.extend attrs || {}, serverAttrs
-				if _.isObject serverAttrs && !model.set serverAttrs, options
-					return false
-				model.trigger 'sync', model, resp, options
-
-			result = attemptRequest
-				method: method
-				instance: model
-				options: options
-				delegateSuccess: delegateSuccess
-
-			# restore attributes
-			if attrs && options.wait then @attributes = attributes
-
-			result
-
-	# Destroy this model on the server if it was already persisted.
-	#	Optimistically removes the model from its collection, if it has one.
-	#	If `wait: true` is passed, waits for the server to respond before removal.
-		destroy: (options) ->
-			options = if options then _.clone(options) else {}
-			model = this;
-			success = options.success;
-
-			destroy = ->
-				model.trigger 'destroy', model, model.collection, options
-
-			options.success = (resp) ->
-				if (options.wait || model.isNew()) then destroy()
-				if (success) then success(model, resp, options);
-				if (!model.isNew()) then model.trigger('sync', model, resp, options)
-
-
-			if (this.isNew())
-				options.success()
-				return false
-
-			wrapError(this, options);
-
-			# don't subscribe
-			options.subscribe = false
-
-			result = attemptRequest
-				method: 'delete'
-				instance: this
-				options: options
-
-			if (!options.wait) then destroy()
-
-			return result
-
-		query: (criteria) ->
-			model = this
-			if criteria
-				model._sails.query = parseQueryObj criteria
+		subscribe: ->
+			if @isNew()
+				self = @
+				@once "change:#{@idAttribute}", -> self.subscribe()
 				return
 
-			api =
-				populate: (criteria) ->
-					model._sails.query.populate = parseQuery.populate.apply {}, arguments
-					api
-			api
+			if @subscribed
+				return
+			
+			@subscribed = true
+
+			modelName = _.result @, 'modelName'
+
+			# first register
+			register modelName, @id
+
+			# then listen
+			prefix = Sails.config.eventPrefix
+			aggregator = Sails.Models[modelName][@id]
+
+			@listenTo aggregator, "addedTo", (e)->
+				@trigger "#{prefix}addedTo", @, e
+				@trigger "#{prefix}addedTo:#{e.attribute}", @, e.addedId, e
+
+			@listenTo aggregator, "removedFrom", (e)->
+				@trigger "#{prefix}removedFrom", @, e
+				@trigger "#{prefix}removedFrom:#{e.attribute}", @, e.removedId, e
+
+			@listenTo aggregator, "destroyed", (e)->
+				@trigger "#{prefix}destroyed", @, e
+
+			@listenTo aggregator, "updated", (e)->
+				changed = false
+				for attribute, val of e.data
+					if @get(attribute) != val
+						@trigger "#{prefix}updated:#{attribute}", @, val, e
+						changed = true
+				if changed
+					@trigger "#{prefix}updated", @, e
+
+			@listenTo aggregator, "messaged", (e)->
+				e = _.clone e
+				action = e.data[keys.messageAction]
+				if !action?
+					@trigger "#{prefix}messaged", @, e.data, e
+				else
+					@trigger "#{prefix}#{action}", @, e.data, e
 
 		constructor: (attrs, options)->
 			super
 
-			@_sails =
-				subscribed: false
-				registered: false
-				query: {}
+			if !@modelName?
+				if !(@modelName = @collection.modelName)?
+					modelNameError()
+			@modelName = @modelName.toLowerCase()
+			@urlRoot = -> "/#{_.result(@, 'modelName')}"
 
-			if options
-				if !_.isUndefined options.socketSync
-					@_sails.socketSync = options.socketSync
-				if !_.isUndefined options.subscribe
-					@_sails.subscribe = options.subscribe
-				if !_.isUndefined options.query
-					@_sails.query = parseQueryObj options.query
-				else
-					if !_.isUndefined options.populate
-						@_sails.query.populate = parseQuery.populate options.populate
+			# subscribe on create
+			@subscribe()
 
-# The all important collection class
+			# copy instance config options
+			if options?
+				for key in keys.model
+					if options[key]?
+						@[configPrefix + key] = options[key]
+
+	class FakeModel extends Sails.Model
+		modelName: '/fake'
+
+	messageCollection = (coll, url, namespace, data = {}, options = {})->
+		if _.isObject namespace
+			options = data
+			data = namespace
+		else
+			data[keys.messageAction] = namespace
+
+		options.method = "POST"
+		options.url = url
+		wrapPayload data, options
+
+		request = null
+		if isAssociated coll # associated collection constructs with a model and a key
+			request = new (coll.constructor)(coll.associated.model, coll.associated.key)
+		else request = new (coll.constructor)()
+
+		state = getConfig 'state', options, coll
+		## server state will message models specified by filter clauses on the server side
+		if state == 'server'
+			# copy instance level config
+			for key in keys.filter
+				request[configPrefix + key] = coll[configPrefix + key]
+			# guarantee a where clause to make sails happy
+			options.where = getConfig('where', options, coll) || {}
+			# send up the request
+			return request.fetch options
+
+		## client state will message model instances currently in the collection
+		else if state == 'client' || true
+			if !coll.size()
+				return promise.wrap($.Deferred().resolve())
+			else
+				options.where = {}
+
+				# to keep as single request, send id's down as where clause
+				idAttr = coll.at(0).idAttribute
+				options.where[idAttr] = []
+				for m in coll.models
+					if !m.isNew() # only message persisted models
+						options.where[idAttr].push m.id
+
+				return request.fetch options
+
 	class Sails.Collection extends Backbone.Collection
+
+		# default model
+		model: Sails.Model
+
+		query: configure
+		configure: configure
+
+		message: (namespace, data, options) ->
+			messageCollection(@, "/#{@modelName}/message", namespace, data, options)
 
 		fetch: (options) ->
 			options = if options then _.clone(options) else {}
-			if _.isUndefined options.parse then options.parse = true
+			if !options.parse? then options.parse = true
 			success = options.success
 			collection = this
 
@@ -956,144 +635,187 @@
 				collection.set(resp, options)
 				collection.trigger 'sync', collection, resp, options
 
-			attemptRequest
+			result = attemptRequest
 				method: 'read'
 				instance: this
 				options: options
 				delegateSuccess: delegateSuccess
 
+			promise.wrap result
+
 		subscribe: ->
-			subscribingCollection @
+			if @subscribed
+				return
+				
+			@subscribed = true
+			
+			modelName = _.result @, 'modelName'
+			
+			# first register
+			register modelName
+			
+			# then listen
+			prefix = Sails.config.eventPrefix
+			aggregator = Sails.Models[modelName]
 
-		query: (criteria) ->
-			coll = this
-			if !_.isUndefined criteria
-				coll._sails.query = parseQueryObj criteria
-				coll
-			else
-				api =
-					where: (criteria) ->
-						coll._sails.query.where = parseQuery.where criteria
-						api
-
-					skip: (criteria) ->
-						coll._sails.query.skip = parseQuery.skip criteria
-						api
-
-					sort: (criteria) ->
-						coll._sails.query.sort = parseQuery.sort criteria
-						api
-
-					limit: (criteria) ->
-						coll._sails.query.limit = parseQuery.limit criteria
-						api
-
-					populate: () ->
-						coll._sails.query.populate = parseQuery.populate.apply {}, arguments
-						api
-
-					paginate: (page, limit) ->
-						api.skip page * limit
-						api.limit limit
-						api
-				api
-
-		model: Sails.Model
-
+			@listenTo aggregator, "created", (e) ->
+				@trigger "#{prefix}created", e.data, e
+		
 		constructor: (models, options)->
-			if !_.isArray models
-				options = models
-				super [], options
-			else
-				super
+			super
 
-			@_sails =
-				subscribed: false
-				registered: false
-				query: {}
+			if !@modelName?
+				modelNameError()
+			@modelName = @modelName.toLowerCase()
+			@url = -> "/#{_.result(@, 'modelName')}"
 
-			if options
-				if !_.isUndefined options.socketSync
-					@_sails.socketSync = options.socketSync
-				if !_.isUndefined options.subscribe
-					@_sails.subscribe = options.subscribe
-				if !_.isUndefined options.query
-					@_sails.query = parseQueryObj options.query
-				else
-					if !_.isUndefined options.limit
-						@_sails.query.limit = parseQuery.limit options.limit
-					if !_.isUndefined options.skip
-						@_sails.query.skip = parseQuery.skip options.skip
-					if !_.isUndefined options.populate
-						@_sails.query.populate = parseQuery.populate options.populate
-					if !_.isUndefined options.sort
-						@_sails.query.sort = parseQuery.sort options.sort
-					if !_.isUndefined options.where
-						@_sails.query.where = parseQuery.where options.where
+			# subscribe on create
+			@subscribe()
 
-# A very special function. This wraps an existing Collection constructor
-# and returns a corresponding 'associated' collection constructor. The
-# associated collection is constructed with a model instance and a key.
-# POST, DELETES and GETS all then go to the backend via the associated
-# collection resource. PUT goes to the associated model resource.
+			# copy instance config options
+			if options?
+				for key in keys.collection
+					if options[key]?
+						@[configPrefix + key] = options[key]
+
 	Sails.Associated = (Collection)->
-		PUT = Collection.prototype.url
 
-		class AssociatedModel extends Collection.prototype.model
-			save: (key, val, options)->
-				if @isNew() # POST /model/id/assoc
-					# will POST to Collection.prototype.model.urlRoot or Collection.url
-					super
+		coll = new Collection()
+
+		if !coll.modelName?
+			modelNameError()
+
+		previousModelName = coll.modelName
+		PreviousModel = _.result(coll, 'model') || Sails.Model
+
+		class AssociatedModel extends PreviousModel
+
+			save: (key, val = {}, options = {})->
+				defer = $.Deferred()
+				self = @
+				twoArgs = _.isNull key || _.isObject key
+				opts = if twoArgs then val else options
+
+				if @isNew()
+					# POST /model/id/assoc = create & addTo
+					opts.url = @collection.url()
+					createAndAddTo = super(key, val, options)
+					createAndAddTo.done ->
+						self.associated.added = true
+					promise.chain createAndAddTo, defer
 				else
-					url = PUT + '/' + @id
-					# glue code from backbone
-					if _.isNull key || _.isObject key
-						options = _.assign {}, val, { url: url }
-						super key, options
+					# PUT /associatedmodel/associd = update
+					if twoArgs then update = super(key, _.clone val)
+					else update = super(key, val, _.clone options)
+
+					if !@associated.added
+						opts.url = @collection.url()
+						opts.method = "POST"
+
+						# after update
+						# POST /model/id/assoc = addTo
+						add = ->
+							addTo = super(key, val, options)
+							addTo.done ->
+								self.associated.added = true
+								defer.resolve.apply defer, arguments
+								#promise.chain update, defer
+							addTo.fail ->
+								defer.reject.apply defer, arguments
+
+						update.done ->
+							add.call(self)
+						update.fail ->
+							defer.reject.apply defer, arguments
 					else
-						options = _.assign {}, options, { url: url }
-						# PUT /associatedmodel/associd
-						super key, val, options
+						promise.chain update, defer
+
+				promise.wrap defer.promise()
 
 			destroy: (options = {}) ->
-				# DELETE to /model/id/assoc
-				wrapDelete @, options
-				super options
+				# DELETE /model/id/assoc = removeFrom
+				wrapId @, options
+				promise.wrap super(options)
+
+			constructor: ->
+				@modelName = previousModelName
+
+				super
+
+				@associated = @collection.associated
 
 		class AssociatedCollection extends Collection
-			# model: AssociatedModel
+
+			# these are here to coerce to the internal model
+			add: (model, options)->
+				if _.isArray model
+					array = _.map model, (m)->
+						m.attributes || m
+					super array, options
+				else
+					m = model.attributes || model
+					super m, options
+			push: (model, options)->
+				m = model.attributes || model
+				super m, options
+			unshift: (model, options)->
+				m = model.attributes || model
+				super m, options
+
+			message: (namespace, data, options)->
+				messageCollection(@, "/#{previousModelName}/message", namespace, data, options)
+
+			subscribe: ->
+				if @subscribed
+					return
+
+				@subscribed = true
+
+				model = @associated.model
+				key = @associated.key
+				prefix = Sails.config.eventPrefix
+
+				# no need to register, will have been done
+				# in  model constructor
+
+				aggregator = Sails.Models[model.modelName][model.id]
+
+				@listenTo aggregator, "addedTo", (e) ->
+					if e.id = model.id && e.attribute == key
+						@trigger "#{prefix}addedTo", e.addedId, e
+
+				@listenTo aggregator, "removedFrom", (e) ->
+					if e.id = model.id && e.attribute == key
+						@trigger "#{prefix}removedFrom", e.removedId, e
 
 			constructor: (model, key, options) ->
-
 				if model.isNew()
 					idError()
 
-				url = _.result(model, 'url') + '/' + key # associated url for posts and deletes
+				if !model.modelName?
+					modelNameError()
 
-				# override the url root if there is one
-				@model  = AssociatedModel.extend urlRoot: url
+				@modelName = "#{model.modelName}/#{model.id}/#{key}"
+
+				# override the model name if there is one
+				@model  = AssociatedModel.extend modelName: @modelName
+
+				@associated =
+					model: model
+					key: key
+
+				# subscribe on create, will suppress any super subscriptions
+				@subscribe()
 
 				# attempt to instantiate via populated attribute
 				super model.attributes[key], options
 
-				@_sails = @_sails || {}
-
-				@url = url
-
-				# store an artificial model for internal implementation's sake
-				@_sails.model = new Sails.Model({ id: model.id }, { collection: this })
-				@_sails.key = key
-
-				# set up the 'addedTo' and 'removedFrom' event forwarding
-				subscribingAssociatedCollection @, model, key
-
-				# the models won't be subscribed if instantiated via a populated attribute
 				for model in @models
-					subscribingModel model
+					# if populated, assume 'added'
+					model.associated.added = true
 
 		AssociatedCollection
 
-	Sails.associated = Sails.Associated
-
 	Backbone.Sails = Sails
+
 )(Backbone, $, _)

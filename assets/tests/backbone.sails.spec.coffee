@@ -1,1190 +1,1348 @@
-###
-
-  FYI: These are no ordinary jasmine specs. In order to run successfully, open up the tests page in two different browser windows. Both pages are designed to 'communicate' with each other.
-
-  It things get messy/ go wrong, fire up sails console and run `TestCommunicay.destroy({}).exec(function(){})`. Try again.
-
-  Open up console to see some helpful tips.
-
-###
-
-## Jasmine Config
-
-jasmine.DEFAULT_TIMEOUT_INTERVAL = 15000
-
-## Globals
 Sails = Backbone.Sails
 
-## Classes
-class TestModel extends Sails.Model
-	urlRoot: "/testmodel"
+Sails.configure
+	promise: (promise)-> Q(promise)
+	poll: 50
+	timeout: false
 
-class TestCollection extends Sails.Collection
-	url: "/testmodel"
-	model: TestModel
+jasmine.DEFAULT_TIMEOUT_INTERVAL = 120000
 
-class TestCommunicay extends Sails.Model
-	urlRoot: "/testcommunicay"
-
-class TestCommunicayCollection extends Sails.Collection
-	url: "/testcommunicay"
-	model: TestCommunicay
-
-AssociatedTestCollection = Sails.Associated TestCollection
-
-## Collection Instances
-testColl = new TestCollection()
-testCommColl = new TestCommunicayCollection()
-
-## Utility
-
-MAX_INT = 9007199254740992
-
-chainPromise = (from, to) ->
-	from.done ->
-		to.resolve.apply to, arguments
-	.fail ->
-		to.reject.apply to, arguments
-
-connect = ->
-	io.socket.socket.connected = true
-
-disconnect = ->
-	io.socket.socket.connected = false
+class Model extends Sails.Model
+	modelName: "testmodel"
+class Collection extends Sails.Collection
+	modelName: "testmodel"
+	model: Model
+AssociatedCollection = Sails.Associated Collection
 
 socketConnected = ->
-	io.socket.socket.connected
-
-deferDelay = 100
-socketConnecting = (defer = $.Deferred())->
-	if socketConnected()
-		defer.resolve()
-	else
-		setTimeout ->
-			socketConnecting(defer)
-		, deferDelay
-
-	defer.promise()
-
-deleteAll = (coll) ->
-	defer = $.Deferred()
-	coll.query().limit(MAX_INT)
-	coll.fetch().done ->
-		promises = []
-		models = coll.models.slice() # keep an external reference since deleting models
-		for model in models
-			promises.push model.destroy()
-		chainPromise $.when(promises), defer
-	defer.promise()
-
-fail = ->
-	console.error "fail...", arguments
-
-wait = (time) ->
-	defer = $.Deferred()
-	setTimeout ->
-		defer.resolve()
-	, time
-	defer.promise()
-
-populateTestModels = ->
-	numbers =
-		one: 1
-		two: 2
-		three: 3
-		four: 4
-		five: 5
-		six: 6
-		seven: 7
-		eight: 8
-		nine: 9
-		ten: 10
-
-	promises = []
-
-	for key, val of numbers
-		m = testColl.push
-			name: key
-			value: val
-
-		promises.push m.save()
-
-	$.when(promises).promise()
-
-first = undefined   # race condition indicating first window to the punch
-delay = 50          # delay between first and last window for same spec
-lastspec = false    # set to true for last spec
-start = false       # boolean indicating to start
-
-deleteAll(testColl)
-.done ->
-	populateTestModels()
-	.done ->
-		populateTestModels()
-		.done ->
-			start = true
-
-okToStart = (defer = $.Deferred())->
-	if start
-		defer.resolve()
-	else
-		setTimeout ->
-			okToStart(defer)
-		, deferDelay
-
-	defer.promise()
-
-## The tests
-describe "Backbone.Sails", ->
-	beforeEach (done)->
-
-		Sails.configure
-			socketSync: true
-			subscribe: false
-			timeout: -> deferDelay
-
-		okToStart().done ->
-
-			testCommColl.fetch().done ->
-				created = testCommColl.findWhere({ method: "start" })
-				if !created
-					console.warn "Open another freaking browser window to start the tests!", "Ya got fifteen seconds sonny, otherwise things 'll go real sour"
-				else
-					console.info "Starting next test... hold onto your hats"
-				if !created
-					creating = testCommColl.push method: "start"
-					creating.save().done ->
-						creating.once "updated:method", (creating, val) ->
-							if val == "startok"
-								creating.set "method", "starting"
-								creating.save().done ->
-									first = true
-									done()
-				else
-					created.set "method", "startok"
-					created.save().done ->
-						created.once "updated:method", (m, val) ->
-							if val == "starting"
-								created.set "method", val
-								created.destroy().then ->
-									first = false
-									setTimeout done, delay
-
-	afterEach (done)->
-		if first
-			# wait for the destroy
-			testCommColl.fetch().done ->
-				if testCommColl.size() != 0
-					testCommColl.once "destroyed", done
-				else
-					done()
+	io.socket?.socket?.connected
+connect = ->
+	io.socket.socket.connected = true
+disconnect = ->
+	io.socket.socket.connected = false
+onConnect = (cb) ->
+	handle = ->
+		if socketConnected()
+			cb()
 		else
-			if !lastspec
-				# wait for the create
-				testCommColl.fetch().done ->
-					if testCommColl.size() == 0
-						testCommColl.once "created", done
-					else
-						done()
-			else
+			setTimeout handle, 50
+	handle()
+wait = (delay)->
+	Q.Promise (res) ->
+		setTimeout res, delay
+
+numbers =
+	one: 1
+	two: 2
+	three: 3
+	four: 4
+	five: 5
+	six: 6
+	seven: 7
+	eight: 8
+	nine: 9
+	ten: 10
+models =
+	deleteAll: ->
+		coll = new Collection()
+		coll.configure
+			limit: 1000000
+		coll.fetch().then ->
+			copy = coll.models.slice()
+			deleting = for m in copy
+				m.destroy()
+			Q.all deleting
+
+	populate: ->
+		coll = new Collection()
+		for key, num of numbers
+			coll.push
+				name: key
+				value: num
+		creating = for m in coll.models
+			m.save()
+		Q.all creating
+		.then ->
+			addingTo = for m, i in coll.models
+				# index = (i + 1) % (coll.models.length)
+				m.addTo 'tests', m
+			Q.all addingTo
+	associate: ->
+		m = new Model name: "master"
+		m.save().then ->
+			addingTo = for key, val of numbers
+				m.addTo 'tests',
+					name: key
+					value: val
+			Q.all addingTo
+		.then ->
+			m
+
+getSpies = (number = 3)=>
+	spies = {}
+	for i in [0..number-1]
+		spies[String.fromCharCode(i + 'a'.charCodeAt(0))] = ->
+	for key of spies
+		spyOn spies, key
+	spies
+socketOnly = =>
+	beforeEach (done)->
+		onConnect done
+ajaxOnly = =>
+	beforeEach (done)->
+		onConnect ->
+			disconnect()
+			done()
+	afterEach ->
+		connect()
+populate = =>
+	beforeEach (done)->
+		models.deleteAll().then ->
+			models.populate()
+		.then ->
+			done()
+
+describe "test utilities", ->
+
+	socketOnly()
+
+	deleteAll = =>
+		it "should delete all model resources and resolve", (done)->
+			coll = undefined
+			populating = for i in [1..10]
+				(new Model()).save()
+			Q.all(populating)
+			.then ->
+				models.deleteAll()
+			.then ->
+				coll = new Collection()
+				coll.fetch()
+			.then ->
+				expect(coll.length).toEqual(0)
 				done()
 
-	describe "socket synced queries", ->
+	describe "deleteAll", ->
+		ajaxOnly()
+		deleteAll()
 
-		describe "synced collection", ->
+	describe "deleteAll over socket", ->
+		deleteAll()
 
-			it "should construct with an initial set of POJOS", ->
-				models = [
-					{ name: "Ian" }
-					{ name: _.uniqueId() }
-					{ name: _.uniqueId() }
-				]
+	populate = =>
+		it "should populate 10 models and add to 'tests'", (done)->
+			coll = undefined
+			models.deleteAll()
+			.then ->
+				models.populate()
+			.then ->
+				coll = new Collection [], { populate: 'tests' }
+				coll.fetch()
+			.then ->
+				expect(coll.length).toEqual(10)
+				for model in coll.models
+					expect(model.get("tests")).toBeTruthy()
+					expect(model.get("tests").length).toEqual(1)
+				done()
 
-				newColl = new TestCollection(models)
+	describe "populate", ->
+		ajaxOnly()
+		populate()
 
-				expect(newColl.size()).toEqual(3)
-				expect(newColl.findWhere( name: "Ian" )).toBeTruthy()
+	describe "populate over socket", ->
+		populate()
 
-			it "should construct with a set of models", ->
-				models = [
-					new Backbone.Model { name: "Ian" }
-					new Backbone.Model { name: _.uniqueId() }
-					new Backbone.Model { name: _.uniqueId() }
-				]
+	associate = =>
+		it "should associate ten models to master and resolve with master", (done)->
+			models.associate().then (master)->
+				expect(master).toBeTruthy()
+				expect(master instanceof Backbone.Model).toEqual(true)
+				expect(master.get("name")).toEqual("master")
+				done()
 
-				newColl = new TestCollection(models)
+	describe "associate", ->
+		ajaxOnly()
+		associate()
 
-				expect(newColl.size()).toEqual(3)
+	describe "associate over socket", ->
+		associate()
 
-				model = newColl.findWhere( name: "Ian" )
+describe "Model", ->
 
-				expect(model).toBeTruthy()
-				expect(model instanceof Backbone.Model).toBeTruthy()
-				expect(model instanceof Sails.Model).not.toBeTruthy()
+	socketOnly()
 
-			it "should parse query parameters from contructor options", (done)->
-				if !first
+	constructor = =>
+		it "should construct as usual", ->
+			m = new Model { name: "Ian" }
+			expect(m.get("name")).toEqual("Ian")
 
-					models = []
+		it "should parse the populate config option", (done)->
+			name = "Ian"
+			m = new Model { name: name }, { populate: "tests test" }
+			m.save().then ->
+				m.addTo 'tests', m
+			.then ->
+				m.fetch()
+			.then ->
+				tests = m.get("tests")
+				test = m.get("test")
+				expect(tests).toBeTruthy()
+				expect(test).toBeTruthy()
+				expect(tests[0].name).toEqual(name)
+				expect(test.id).toEqual(m.id)
+				done()
 
-					for i in [0..10]
-						models.push
-							value: i
+		it "should register the correct url from the modelName", ->
+			m = new Model id: "123"
+			expect(m.isNew()).not.toBeTruthy()
+			expect(m.url()).toEqual('/testmodel/123')
 
-					newColl = new TestCollection models,
-						query:
-							sort: "value ASC"
-							limit: 5
-							skip: 1
+		it "should override the urlRoot", ->
+			M = Model.extend modelName: "user", urlRoot: "/false"
+			m = new M id: "123"
+			expect(m.isNew()).not.toBeTruthy()
+			expect(m.url()).toEqual('/user/123')
+			expect(m.urlRoot()).toEqual('/user')
 
-					expect(newColl.size()).toEqual(11)
+		it "should parse the populate config option from the prototype", (done)->
+			name = "Ian"
+			M = Model.extend config: populate: "tests test"
+			m = new M { name: name }
+			m.save().then ->
+				m.addTo 'tests', m
+			.then ->
+				m.fetch()
+			.then ->
+				tests = m.get("tests")
+				test = m.get("test")
+				expect(tests).toBeTruthy()
+				expect(test).toBeTruthy()
+				expect(tests[0].name).toEqual(name)
+				expect(test.id).toEqual(m.id)
+				done()
 
-					promises = []
+	describe "constructor", ->
+		ajaxOnly()
+		constructor()
 
-					newColl.forEach (m) ->
-						promises.push(m.save())
+	describe "constructor over socket", ->
+		constructor()
 
-					$.when(promises).done ->
-						newColl.fetch().done ->
+	save = =>
+		it "should save as usual", (done)->
+			m = new Model()
 
-							expect(newColl.at(0).get("value")).not.toEqual(0)
-							expect(newColl.at(0).get("value")).toEqual(1)
-							expect(newColl.size()).toEqual(5)
+			m.save().then ->
+				expect(m.isNew()).not.toBeTruthy()
+				done()
 
-							done()
+		it "should save with an optional key-val", (done) ->
+			m = new Model()
+			spies = getSpies(1)
+			m.on "change:name", spies.a
 
-				else done()
+			m.save "name", "Ian"
+			.then ->
+				expect(spies.a).toHaveBeenCalled()
+				expect(m.get("name")).toEqual("Ian")
+				done()
 
-			it "should parse socket options from the constructor options", (done)->
-				newColl = new TestCollection [],
-					socketSync: false
-					subscribe: true
+		it "should save with a key-val object", (done) ->
+			m = new Model()
+			spies = getSpies(1)
+			m.on "change:name", spies.a
 
-				expect(newColl._sails.subscribe).toEqual(true)
-				expect(newColl._sails.socketSync).toEqual(false)
+			m.save name: "Ian", value: 1
+			.then ->
+				expect(spies.a).toHaveBeenCalled()
+				expect(m.get("name")).toEqual("Ian")
+				expect(m.get("value")).toEqual(1)
+				done()
 
-				spies =
-					f: ->
-					g: ->
+		it "should update as usual", (done)->
+			m = new Model()
+			m1 = undefined
 
-				spyOn spies, 'f'
-				spyOn spies, 'g'
+			m.save().then ->
+				m1 = new Model m.attributes
+				m.set("name", "Ian")
+				m.save()
+			.then ->
+				m1.fetch()
+			.then ->
+				expect(m1.get("name")).toEqual("Ian")
+				done()
 
-				newColl.on "sync", spies.g
-				newColl.on "socketSync", spies.f
+		it "should use sockets if configured", (done)->
+			m = new Model {}
 
+			spies = f: ->
+			spyOn spies, 'f'
+			m.on 'sync', spies.f
+
+			disconnect()
+			m.save({}, sync: 'socket')
+			wait(Sails.config.poll * 2).then ->
+				expect(spies.f).not.toHaveBeenCalled()
+				connect()
+				wait(Sails.config.poll * 2)
+			.then ->
+				expect(spies.f).toHaveBeenCalled()
+				done()
+
+		it "should use ajax if configured", (done)->
+			m = new Model {}
+
+			spies = f: ->
+			spyOn spies, 'f'
+			m.on 'sync', spies.f
+
+			disconnect()
+			m.save({}, sync: 'ajax')
+			wait(Sails.config.poll * 2).then ->
+				expect(spies.f).toHaveBeenCalled()
+				connect()
+				done()
+
+		it "should delegate to ajax if configured", (done)->
+			m = new Model {}
+
+			spies = f: ->
+			spyOn spies, 'f'
+			m.on 'sync', spies.f
+
+			disconnect()
+			m.save({}, sync: 'socket ajax')
+			wait(Sails.config.poll * 2).then ->
+				expect(spies.f).toHaveBeenCalled()
+				connect()
+				done()
+
+		it "should parse the populate config option", (done)->
+			model = undefined
+			coll = undefined
+			models.deleteAll().then ->
+				models.populate()
+			.then ->
+				coll = new Collection()
+				coll.fetch()
+			.then ->
+				model = coll.at(0)
+				model = new Model model.attributes
+				expect(model.get("tests")).not.toBeTruthy()
+				model.save({}, populate: "tests")
+			.then ->
+				expect(model.get("tests")).toBeTruthy()
+				done()
+
+	describe "save", ->
+		ajaxOnly()
+		save()
+
+	describe "save over socket", ->
+		save()
+
+	fetch = =>
+		it "should fetch as usual", (done)->
+			m = new Model name: "monica"
+			m1 = undefined
+			m.save().then ->
+				m1 = new Model id: m.id
+				m1.fetch()
+			.then ->
+				expect(m1.isNew()).not.toBeTruthy()
+				expect(m1.get("name")).toEqual("monica")
+				done()
+
+		it "should parse the populate option", (done)->
+			m = new Model name: "monica"
+			m1 = undefined
+			m.save().then ->
+				m.addTo('tests', m)
+			.then ->
+				m1 = new Model id: m.id
+				m1.fetch( populate: 'test' )
+			.then ->
+				expect(m1.isNew()).not.toBeTruthy()
+				expect(m1.get("name")).toEqual("monica")
+				expect(_.isObject m1.get("test")).toBeTruthy()
+				expect(m1.get("test").name).toEqual("monica")
+				done()
+
+		it "should parse the sync option", (done)->
+			m = new Model name: "Fred"
+			spies = getSpies()
+			m.save().then ->
 				disconnect()
+				m.on "sync", spies.a
+				m.fetch( sync: "socket" )
+				wait(Sails.config.poll * 2)
+			.then ->
+				expect(spies.a).not.toHaveBeenCalled()
+				connect()
+				wait(Sails.config.poll * 2)
+			.then ->
+				expect(spies.a).toHaveBeenCalled()
+				done()
+			.finally ->
+				connect()
 
-				newColl.fetch().done ->
+	describe "fetch", ->
+		ajaxOnly()
+		fetch()
+	describe "fetch over socket", ->
+		fetch()
 
-					expect(spies.g).toHaveBeenCalled()
-					expect(spies.f).not.toHaveBeenCalled()
+	configure = =>
+		it "should parse the populate option", (done) ->
+			m = new Model()
+			m.save().then ->
+				m.addTo 'tests', m
+			.then ->
+				m.configure
+					populate: 'test'
+				m.fetch()
+			.then ->
+				expect(_.isObject m.get('test')).toBeTruthy()
+				expect(m.get('test').id).toEqual(m.id)
+				done()
 
-					newColl.on "socketSync", ->
-						expect(spies.f).toHaveBeenCalled()
-						newColl.off "socketSync"
-						newColl.off "sync"
-
-						done()
-
-					connect() # subscribe will resolve over sockets
-
-			it "should parse socket options from the constructor options", (done)->
-				newColl = new TestCollection [],
-					socketSync: false
-					subscribe: false # no resolution over sockets this time
-
-				expect(newColl._sails.subscribe).toEqual(false)
-				expect(newColl._sails.socketSync).toEqual(false)
-
-				spies =
-					f: ->
-					g: ->
-
-				spyOn spies, 'f'
-				spyOn spies, 'g'
-
-				newColl.on "sync", spies.g
-				newColl.on "socketSync", spies.f
-
+		it "should parse the sync option", (done) ->
+			m = new Model name: "Fred"
+			spies = getSpies()
+			m.save().then ->
 				disconnect()
+				m.on "sync", spies.a
+				m.configure( sync: "socket" )
+				m.fetch()
+				wait(Sails.config.poll * 2)
+			.then ->
+				expect(spies.a).not.toHaveBeenCalled()
+				connect()
+				wait(Sails.config.poll * 2)
+			.then ->
+				expect(spies.a).toHaveBeenCalled()
+				done()
+			.finally ->
+				connect()
 
-				newColl.fetch().done ->
+		it "should nullify any inherited options with false", (done) ->
+			M = Model.extend config: populate: "test"
+			m = new M name: "Fred"
+			m.save().then ->
+				m.addTo 'tests', m
+			.then ->
+				m.fetch()
+			.then ->
+				expect(_.isObject m.get("test")).toEqual(true)
+				m.configure "populate", false
+				m.fetch()
+			.then ->
+				expect(_.isObject m.get("test")).toEqual(false)
+				done()
 
-					expect(spies.g).toHaveBeenCalled()
-					expect(spies.f).not.toHaveBeenCalled()
+	describe "configure", ->
+		ajaxOnly()
+		configure()
 
-					connect()
+	describe "configure over socket", ->
+		configure()
 
-					setTimeout ->
-						expect(spies.f).not.toHaveBeenCalled()
+	addTo = =>
+		it "should add a new record", (done)->
+			m = new Model( name: "addToMe"); added = undefined
+			m.save().then ->
+				added = new Model( name: "added" )
+				m.addTo 'tests', added
+			.then ->
+				added.fetch populate: 'test'
+			.then ->
+				expect(_.isObject added.get("test")).toBeTruthy()
+				expect(added.get("test").name).toEqual("addToMe")
+				done()
 
-						newColl.off "sync"
-						newColl.off "socketSync"
+		it "should add a pojo", (done)->
+			m = new Model( name: "addToMe"); added = undefined
+			m.save().then ->
+				added = name: "addMeTo"
+				m.addTo 'tests', added
+			.then (res)->
+				added = new Model res
+				added.fetch populate: 'test'
+			.then ->
+				expect(added.get("name")).toEqual("addMeTo")
+				expect(_.isObject added.get("test")).toEqual(true)
+				expect(added.get("test").name).toEqual("addToMe")
+				done()
 
-						done()
-					, deferDelay + delay
+		it "should add an existing record", (done) ->
+			m = new Model name: "existing"
+			m1 = undefined
+			m.save().then ->
+				m1 = new Model "addToMe"
+				m1.save()
+			.then ->
+				m1.addTo 'tests', m
+			.then ->
+				m1.fetch populate: 'tests'
+			.then ->
+				expect(_.isArray (m1.get('tests'))).toBeTruthy()
+				expect(m1.get('tests').length).toBeTruthy()
+				expect(m1.get('tests')[0].name).toEqual('existing')
+				done()
 
-			it "should subscribe when requested", (done)->
-				if !first
+	describe "addTo", ->
+		ajaxOnly()
+		addTo()
+	describe "addTo over socket", ->
+		addTo()
 
-					newColl = new TestCollection()
+	removeFrom = =>
+		it "should remove an existing record", (done)->
+			m = new Model name: "removeFromMe"
+			m1 = undefined
+			m.save().then ->
+				m1 = new Model name: "removeMeFrom"
+				m.addTo 'tests', m1
+			.then ->
+				m.removeFrom 'tests', m1
+			.then ->
+				m.fetch populate: 'tests'
+			.then ->
+				expect(m.get('tests')).toBeTruthy()
+				expect(m.get('tests').length).not.toBeTruthy()
+				done()
 
-					anotherColl = new TestCollection()
+		it "should remove an existing record whilst maintaining its state", (done)->
+			m = new Model name: "removeFromMe"
+			m1 = undefined
+			m.save().then ->
+				m1 = new Model name: "removeMeFrom"
+				m.addTo 'tests', m1
+			.then ->
+				m.removeFrom 'tests', m1
+			.then ->
+				m.fetch populate: 'tests'
+			.then ->
+				expect(m.get('tests')).toBeTruthy()
+				expect(m.get('tests').length).not.toBeTruthy()
+				expect(m1.get('name')).toEqual('removeMeFrom')
+				done()
 
-					spies =
-						f: ->
+		it "should remove a pojo with an id", (done)->
+			m = new Model name: "removeFromMe"
+			m1 = undefined
+			m.save().then ->
+				m1 = new Model "removeMeFrom"
+				m.addTo 'tests', m1
+			.then ->
+				m.removeFrom 'tests', m1.attributes
+			.then ->
+				m.fetch populate: 'tests'
+			.then ->
+				expect(m.get('tests')).toBeTruthy()
+				expect(m.get('tests').length).not.toBeTruthy()
+				done()
 
-					spyOn spies, 'f'
+	describe "removeFrom", ->
+		ajaxOnly()
+		removeFrom()
+	describe "removeFrom over socket", ->
+		removeFrom()
 
-					newColl.on "created", spies.f
+	describe "events", ->
 
-					newColl.subscribe().done ->
+		describe "addedTo", ->
 
-						m = anotherColl.push
-							name: "something"
-
-						m.save().done ->
-							expect(spies.f).toHaveBeenCalled()
-
-							done()
-
-				else
+			it "should fire when a record is added to", (done)->
+				m = new Model()
+				m1 = undefined
+				spies = undefined
+				addMe = undefined
+				m.save().then ->
+					m1 = new Model m.attributes # should subscribe on construct
+					spies = getSpies()
+					m1.on "addedTo", spies.a
+					m1.on "addedTo:tests", spies.b
+					addMe = new Model name: 'added'
+					m.addTo 'tests', addMe
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					expect(spies.b).toHaveBeenCalled()
+					addedToArgs = spies.a.calls.argsFor(0)
+					expect(addedToArgs[0]).toEqual(m1)
+					expect(addedToArgs[1]).toBeTruthy() # socket event
+					addedToTestsArgs = addedToArgs = spies.b.calls.argsFor(0)
+					expect(addedToTestsArgs[0]).toEqual(m1)
+					expect(addedToTestsArgs[1]).toEqual(addMe.id)
+					expect(addedToTestsArgs[2]).toBeTruthy() # socket event
 					done()
 
-			it "should parse socket options from the fetch options", (done)->
-				if !first
-
-					newColl = new TestCollection [],
-						socketSync: true # fetch options should override these
-
-					spies =
-						f: ->
-						g: ->
-						h: ->
-						i: ->
-
-					spyOn spies, 'f'
-					spyOn spies, 'g'
-					spyOn spies, 'h'
-					spyOn spies, 'i'
-
-					newColl.on "sync", spies.f
-					newColl.on "socketSync", spies.g
-					newColl.on "error", spies.h
-					newColl.on "socketError", spies.i
-
-					disconnect()
-
-					newColl.fetch
-						socketSync: false
-						subscribe: false
-					.done ->
-						expect(spies.f).toHaveBeenCalled()
-						expect(spies.g).not.toHaveBeenCalled()
-						expect(spies.h).not.toHaveBeenCalled()
-						expect(spies.i).not.toHaveBeenCalled()
-
-						newColl.fetch
-							socketSync: false
-							subscribe: true
-						.done ->
-							expect(spies.f.calls.count()).toEqual(2)
-							expect(spies.g).not.toHaveBeenCalled()
-							expect(spies.h).not.toHaveBeenCalled()
-							expect(spies.i).not.toHaveBeenCalled()
-
-							connect()
-
-							newColl.once "subscribed", ->
-
-								expect(spies.f.calls.count()).toEqual(3)
-								expect(spies.g).toHaveBeenCalled()
-								expect(spies.h).not.toHaveBeenCalled()
-								expect(spies.i).not.toHaveBeenCalled()
-
-								newColl.fetch
-									url: "/fake"
-								.always ->
-
-									expect(spies.f.calls.count()).toEqual(3)
-									expect(spies.g.calls.count()).toEqual(1)
-									expect(spies.h).toHaveBeenCalled()
-									expect(spies.i).toHaveBeenCalled()
-
-									newColl.off "sync"
-									newColl.off "socketSync"
-									newColl.off "error"
-									newColl.off "socketError"
-
-									done()
-				else
-					done()
-
-			it "should query according to limit criteria", (done) ->
-				if !first
-
-					newColl = new TestCollection [],
-						query:
-							sort: "value ASC"
-							limit: 3
-
-					newColl.fetch().done ->
-
-						expect(newColl.size()).toEqual(3)
-
-						newColl.query
-							limit: 2
-						.fetch().done ->
-
-							expect(newColl.size()).toEqual(2)
-
-							newColl.query().limit(3)
-
-							newColl.fetch().done ->
-
-								expect(newColl.size()).toEqual(3)
-
-								done()
-				else
-					done()
-
-			it "should query according to sort criteria", (done) ->
-
-				if !first
-					newColl = new TestCollection
-						sort: "value ASC"
-						where: value: '!': null
-
-					newColl.fetch().done ->
-
-						for i in [0..(newColl.size()-2)]
-							expect(newColl.at(i).get("value")).not.toBeUndefined()
-							expect(newColl.at(i).get("value") <= newColl.at(i+1).get("value")).toEqual(true)
-
-						newColl.query
-							sort: value : 1
-							where: value: '!': null
-
-						.fetch().done ->
-							for i in [0..(newColl.size()-2)]
-								expect(newColl.at(i).get("value") <= newColl.at(i+1).get("value")).toEqual(true)
-
-							newColl.query().sort("value DESC")
-
-							newColl.fetch().done ->
-								for i in [0..(newColl.size()-2)]
-									expect(newColl.at(i).get("value") >= newColl.at(i+1).get("value")).toEqual(true)
-
-								done()
-				else
-					done()
-
-			it "should query according to populate criteria", (done) ->
-				if !first
-					newColl = new TestCollection
-						query: limit: 1000
-
-					sup = newColl.push name: "super"
-					sub = newColl.push name: "sub"
-
-					sup.save().done ->
-						sup.addTo('tests', sub).done ->
-
-							newColl.query().where
-								or: [
-									{ name: "super" }
-									{ name: "sub" }
-								]
-							.populate "tests"
-
-							newColl.fetch().done ->
-								sup = newColl.findWhere name: "super"
-								sub = newColl.findWhere name: "sub"
-
-								expect(sup).toBeTruthy()
-								expect(sub).toBeTruthy()
-
-								expect(sup.get("tests")).toBeTruthy()
-								expect(sub.get("test")).toEqual(sup.id)
-
-								done()
-				else
-					done()
-
-			it "should query according to skip criteria", (done) ->
-				if !first
-					newColl = new TestCollection
-						query:
-							limit: 1000
-							skip: 0
-							sort: "createdAt"
-
-					newColl.fetch().done ->
-						m = newColl.at(1)
-
-						newColl.query().skip 1
-
-						newColl.fetch().done ->
-							expect(newColl.at(0)).toEqual(m)
-
-							done()
-
-				else
-					done()
-
-			it "should query according to where criteria", (done)->
-				if !first
-					newColl = new TestCollection
-						where: value: 1
-
-					newColl.fetch().done ->
-						for model in newColl.models
-							expect(model.get("value")).toEqual(1)
-
-						newColl.query().where
-							name: startsWith: "o"
-
-						newColl.fetch().done ->
-							for model in newColl.models
-								expect(model.get("name")[0]).toEqual("o")
-
-						done()
-				else
-					done()
-
-			it "should fire the created event", (done)->
-				name = "Ian"
-
-				newColl = new TestCollection()
-				newColl.fetch().done ->
-
-					if !first
-						m = newColl.push name: name
-						m.save().done ->
-							expect(true).toBe(true)
-							done()
-					else
-						newColl.once "created", (data, socketEvent)->
-							expect(data.name).toEqual(name)
-							expect(socketEvent).toBeTruthy()
-							done()
-
-			it "should fire the socketSync event", (done) ->
-
-				if !first
-
-					newColl = new TestCollection
-						query: limit: 1000
-
-					$.when([newColl.fetch(), wait(200)]).done ->
-
-						value = "A unique string"
-						newColl.on "socketSync", (coll, resp, options) ->
-							if (coll == newColl)
-
-								expect(options).toBeTruthy()
-
-								newColl.off "socketSync"
-
-								done()
-
-						m = newColl.push name: value
-						m.save().done ->
-							newColl.fetch()
-				else
-					done()
-
-
-			it "should fire the socketRequest event", (done) ->
-
-				newColl = new TestCollection()
-
-				newColl.on "socketRequest", (coll, promise, options) ->
-
-					if coll instanceof Sails.Collection
-
-						expect(coll).toEqual(newColl)
-						expect(_.isFunction promise.done).toBeTruthy()
-						expect(options).toBeTruthy()
-
-						newColl.off "socketRequest"
-
-						done()
-
-				newColl.fetch() # triggers socketRequest
-
-			it "should fire the socketError event", (done) ->
-
-				newColl = new TestCollection()
-
-				newColl.on "socketError", (coll, resp, options) ->
-
-					if coll instanceof Sails.Collection
-
-						expect(coll).toEqual(newColl)
-						expect(resp.statusCode).toEqual(404) # not found
-						expect(options).toBeTruthy()
-
-						newColl.off "socketError"
-
-						done()
-
-				newColl.fetch({ url: "/fake" }) # should get a server error
-
-			it "should fire the subscribed event", (done) ->
-				newColl = new TestCollection()
-
-				newColl.on "subscribed", (coll, modelName) ->
-					if coll instanceof Sails.Collection
-
-						expect(coll).toEqual(newColl)
-						expect(modelName).toEqual("testmodel")
-
-						newColl.off "subscribed"
-
-						done()
-
-				newColl.fetch()
-
-		describe "synced model", ->
-
-			it "should construct with a pojo of attributes", ->
-				if !first
-					m = new TestModel
-						name: "Ian"
-
-					expect(m.get("name")).toEqual("Ian")
-
-			it "should be able to parse out the populate option from the constructor", ->
-				if !first
-					m = new TestModel
-						name: "Ian"
-					,
-						populate: "test"
-
-					expect(m._sails.query.populate).toBeTruthy()
-
-			it "should populate if populated is true, and not populate undefined/false", (done)->
-				if !first
-					newColl = new TestCollection()
-
-					m = newColl.push name: "super"
-
-					m.save().done ->
-
-						id = m.id
-
-						m.addTo "tests",
-							name: "sub"
-							urlRoot: "/testmodel"
-						.done (resp)->
-
-							added = resp # should be an array
-
-							expect(added.name).toEqual("sub")
-
-							m = new TestModel
-								id: id
-							,
-								populate: "tests"
-
-							m.fetch().done ->
-
-								expect(m.get("tests")).toBeTruthy()
-
-								expect(m.get("tests").length).toEqual(1)
-
-								m = new TestModel
-									id: id
-
-								m.fetch().done ->
-
-									expect(m.get("tests")).not.toBeTruthy()
-
-									done()
-
-				else
-					done()
-
-			it "constructor should parse out socket configuration options", (done)->
-
-				if !first
-
-					delay = deferDelay * 2
-
-					m = new TestModel
-						name: "an object"
-					,
-						socketSync: true
-
-					spies =
-						f: ->
-						g: ->
-
-					spyOn spies, 'f'
-					spyOn spies, 'g'
-
-					disconnect()
-
-					m.on "socketSync", spies.f
-
+			# TODO - sails doesn't like this
+			xit "should fire when a record is addedTo via a save request", (done)->
+				m = new Model()
+				m1 = undefined
+				spies = undefined
+				addMe = undefined
+				m.save().then ->
+					m1 = new Model m.attributes # should subscribe on construct
+					spies = getSpies()
+					m1.on "addedTo", spies.a
+					m1.on "addedTo:tests", spies.b
+					m.set 'tests', [{ name: 'added' }]
 					m.save()
-
-					wait(delay).done ->
-
-						expect(spies.f).not.toHaveBeenCalled()
-
-						connect()
-
-						wait(delay).done ->
-
-							expect(spies.f).toHaveBeenCalled()
-
-							m = new TestModel
-								name: "another object"
-							,
-								subscribe: true
-								socketSync: false
-
-							disconnect()
-
-							m.on "socketSync", spies.f
-							m.on "sync", spies.g
-
-							m.save().done ->
-
-								expect(spies.f.calls.count()).toEqual(1)
-								expect(spies.g).toHaveBeenCalled()
-
-								connect()
-
-								wait(delay).done ->
-
-									expect(spies.f.calls.count()).toEqual(2)
-									expect(spies.g.calls.count()).toEqual(2)
-
-									done()
-
-				else
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					expect(spies.b).toHaveBeenCalled()
+					addedToArgs = spies.a.calls.argsFor(0)
+					expect(addedToArgs[0]).toEqual(m1)
+					expect(addedToArgs[1]).toBeTruthy() # socket event
+					addedToTestsArgs = addedToArgs = spies.b.calls.argsFor(0)
+					expect(addedToTestsArgs[0]).toEqual(m1)
+					expect(addedToTestsArgs[1]).toBeTruthy() # id of added
+					expect(addedToTestsArgs[2]).toBeTruthy() # socket event
+					expect(addedToTestsArgs[1]).toEqual(addedToTestsArgs[2].addedId)
 					done()
 
-			it "should be able to save", (done)->
-				if !first
-					m = new TestModel name: "save me"
+		describe "removedFrom", ->
+			
+			it "should fire when a record is removed from", (done)->
+				m = new Model()
+				m1 = undefined
+				spies = undefined
+				removeMe = undefined
+				m.save().then ->
+					m1 = new Model m.attributes # should subscribe on construct
+					spies = getSpies()
+					m1.on "removedFrom", spies.a
+					m1.on "removedFrom:tests", spies.b
+					removeMe = new Model name: 'added'
+					m.addTo 'tests', removeMe
+				.then ->
+					m.removeFrom 'tests', removeMe
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					expect(spies.b).toHaveBeenCalled()
+					removedFromArgs = spies.a.calls.argsFor(0)
+					expect(removedFromArgs[0]).toEqual(m1)
+					expect(removedFromArgs[1]).toBeTruthy() # socket event
+					removedFromTestsArgs = removedFromArgs = spies.b.calls.argsFor(0)
+					expect(removedFromTestsArgs[0]).toEqual(m1)
+					expect(removedFromTestsArgs[1]).toEqual(removeMe.id)
+					expect(removedFromTestsArgs[2]).toBeTruthy() # socket event
+					done()
 
-					m.save().done ->
+			# TODO sails doesn't like this
+			xit "should fire when a record is removed from via a save request", (done)->
+				m = new Model()
+				m1 = undefined
+				spies = undefined
+				removeMe = undefined
+				m.save().then ->
+					m1 = new Model m.attributes # should subscribe on construct
+					spies = getSpies()
+					m1.on "removedFrom", spies.a
+					m1.on "removedFrom:tests", spies.b
+					removeMe = new Model name: 'added'
+					m.addTo 'tests', removeMe
+				.then ->
+					m.set 'tests', []
+					m.save()
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					expect(spies.b).toHaveBeenCalled()
+					removedFromArgs = spies.a.calls.argsFor(0)
+					expect(removedFromArgs[0]).toEqual(m1)
+					expect(removedFromArgs[1]).toBeTruthy() # socket event
+					removedFromTestsArgs = removedFromArgs = spies.b.calls.argsFor(0)
+					expect(removedFromTestsArgs[0]).toEqual(m1)
+					expect(removedFromTestsArgs[1]).toEqual(removeMe.id)
+					expect(removedFromTestsArgs[2]).toBeTruthy() # socket event
+					done()
 
-						expect(m.id).toBeTruthy()
+		describe "destroyed", ->
 
+			it "should fire when a record is deleted", (done)->
+				model = new Model()
+				spies = getSpies()
+				model.on "destroyed", spies.a
+				model.save().then ->
+					m = model.clone()
+					m.destroy()
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					args = spies.a.calls.argsFor(0)
+					expect(args[0]).toEqual(model)
+					expect(args[1]).toBeTruthy()
+					expect(args[1].id).toEqual(model.id)
+					done()
+
+		describe "updated", ->
+			it "should fire when a record is updated", (done)->
+				model = new Model()
+				spies = getSpies()
+				model.save().then ->
+					m = new Model model.attributes
+					model.on "updated", spies.a
+					model.on "updated:name", spies.b
+					m.set "name", "something"
+					m.save()
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					expect(spies.b).toHaveBeenCalled()
+					updatedArgs = spies.a.calls.argsFor(0)
+					expect(updatedArgs[0]).toEqual(model)
+					expect(updatedArgs[1]).toBeTruthy()
+					expect(updatedArgs[1].id).toEqual(model.id)
+					updatedNameArgs = spies.b.calls.argsFor(0)
+					expect(updatedNameArgs[0]).toEqual(model)
+					expect(updatedNameArgs[1]).toEqual('something')
+					expect(updatedNameArgs[2]).toBeTruthy()
+					expect(updatedNameArgs[2].id).toEqual(model.id)
+					done()
+
+			it "shouldn't fire if the attribute is the same on the client side", (done)->
+				model = new Model name: "something"
+				spies = getSpies()
+				model.save().then ->
+					m = new Model model.attributes
+					model.on "updated:name", spies.b
+					m.set "name", "something"
+					m.save()
+				.then ->
+					expect(spies.b).not.toHaveBeenCalled()
+					done()
+
+		describe "messaged", (done) ->
+
+			it "should fire on a model that is messaged serverside", (done) ->
+				model = new Model()
+				m = undefined
+				spies = getSpies()
+				model.save().then ->
+					m = new Model model.attributes
+					m.on "messaged", spies.a
+					model.on "messaged", spies.b
+					model.message
+						some: "data"
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					expect(spies.b).toHaveBeenCalled()
+					args = spies.a.calls.argsFor(0)
+					expect(args[0]).toEqual(m)
+					expect(args[1]).toBeTruthy()
+					expect(args[1].some).toEqual("data")
+					expect(args[2]).toBeTruthy()
+					expect(args[2].id).toEqual(m.id)
+					done()
+
+			it "should fire a custom event string, if passed", (done) ->
+				model = new Model()
+				m = undefined
+				spies = getSpies()
+				model.save().then ->
+					m = new Model model.attributes
+					m.on "custom", spies.a
+					model.on "custom", spies.b
+					model.message "custom",
+						some: "data"
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					expect(spies.b).toHaveBeenCalled()
+					args = spies.a.calls.argsFor(0)
+					expect(args[0]).toEqual(m)
+					expect(args[1]).toBeTruthy()
+					expect(args[1].some).toEqual("data")
+					expect(args[2]).toBeTruthy()
+					expect(args[2].id).toEqual(m.id)
+					done()
+
+describe "Collection", ->
+
+	socketOnly()
+
+	constructor = =>
+		it "should construct as usual", ->
+			coll = new Collection()
+			expect(coll.size()).toEqual(0)
+			coll = new Collection [{}]
+			expect(coll.size()).toEqual(1)
+
+		it "should construct from a set of pojos, coercing to a model", ->
+			coll = new Collection [
+				{ name: "Fred" }
+				{ name: "Jack" }
+				{ name: "Bob" }
+			]
+			expect(coll.size()).toEqual(3)
+			m0 = coll.at(0)
+			expect(m0 instanceof Sails.Model).toEqual(true)
+			expect(m0.get("name")).toEqual("Fred")
+
+		it "should construct from a set of models", ->
+			coll = new Collection [
+				new Backbone.Model { name: "Fred" }
+				new Backbone.Model { name: "Jack" }
+				new Backbone.Model { name: "Bob" }
+			]
+			expect(coll.size()).toEqual(3)
+			m0 = coll.at(0)
+			expect(m0 instanceof Sails.Model).toEqual(false)
+			expect(m0.get("name")).toEqual("Fred")
+
+		it "should parse config options from the options object", (done)->
+			coll = new Collection [], { populate: 'tests' }
+			coll.fetch().then ->
+				coll.forEach (m)->
+					expect(m.get('tests')).toBeTruthy()
+					done()
+
+		it "should parse config options from the config prototype object", (done)->
+			Coll = Collection.extend
+				config: populate: 'tests'
+			coll = new Coll()
+			coll.fetch().then ->
+				coll.forEach (m)->
+					expect(m.get('tests')).toBeTruthy()
+					done()
+
+	describe "constructor", ->
+		ajaxOnly()
+		constructor()
+
+	describe "constructor over socket", ->
+		constructor()
+
+
+	fetch = =>
+		it "should fetch as usual", (done) ->
+			coll = new Collection()
+			coll.fetch().then ->
+				expect(coll.size()).toEqual(10)
+				done()
+
+		it "should fetch according to instance limit criteria", (done) ->
+			coll = new Collection()
+			coll.query limit: 5
+			coll.fetch().then ->
+				expect(coll.size()).toEqual(5)
+				done()
+
+		it "should fetch according to option limit criteria", (done) ->
+			coll = new Collection [], limit: 5
+			coll.fetch().then ->
+				expect(coll.size()).toEqual(5)
+				done()
+
+		it "should fetch according to constructor limit criteria", (done) ->
+			Coll = Collection.extend config: limit: 5
+			coll = new Coll()
+			coll.fetch().then ->
+				expect(coll.size()).toEqual(5)
+				done()
+
+	describe "fetch", ->
+		ajaxOnly()
+		populate()
+		fetch()
+
+	describe "fetch over socket", ->
+		populate()
+		fetch()
+
+	query = =>
+		it "should limit results", (done)->
+			coll = new Collection()
+			coll.query limit: 5
+			coll.fetch().then ->
+				expect(coll.size()).toEqual(5)
+				coll.query "limit", 3
+				coll.fetch()
+			.then ->
+				expect(coll.size()).toEqual(3)
+				done()
+
+		it "should sort results", (done)->
+			coll = new Collection()
+			coll.query sort: "name ASC"
+			coll.fetch().then ->
+				for i in [0..(coll.models.length - 2)]
+					expect(coll.models[i].get("name")).toBeLessThan(coll.models[i+1].get("name"))
+				coll.query "sort", "name DESC"
+				coll.fetch()
+			.then ->
+				for i in [0..(coll.models.length - 2)]
+					expect(coll.models[i+1].get("name")).toBeLessThan(coll.models[i].get("name"))
+				coll.query sort: value: 1 # value ascending
+				coll.fetch()
+			.then ->
+				for i in [0..(coll.models.length - 2)]
+					expect(coll.models[i].get("value")).toBeLessThan(coll.models[i+1].get("value"))
+				done()
+
+		it "should skip results", (done)->
+			coll = new Collection();
+			m1 = undefined; m2 = undefined;
+			coll.query "sort", "createdAt ASC"
+			coll.query "skip", 0
+			coll.fetch().then ->
+				m1 = coll.at(1)
+				coll.query "skip", 1
+				coll.fetch().then ->
+					m2 = coll.at(0)
+					expect(m1.id).toEqual(m2.id)
+					done()
+
+		describe "where", ->
+			it "should filter by contains", (done)->
+				coll = new Collection()
+				coll.query where: name: contains: 'on'
+				coll.fetch().then ->
+					coll.forEach (m)->
+						expect(_.contains m.get("name"), 'on').toEqual(true)
+					done()
+
+			it "should filter by startsWith", (done)->
+				Coll = Collection.extend  config: where: name: startsWith: 'o'
+				coll = new Coll()
+				coll.fetch().then ->
+					coll.forEach (m)->
+						expect(_.first m.get("name")).toEqual('o')
+					done()
+
+			it "should filter by a literal", (done)->
+				coll = new Collection [], where: name: 'one'
+				coll.fetch().then ->
+					coll.forEach (m)->
+						expect(m.get("name")).toEqual('one')
+					done()
+
+			it "should filter an array as an OR clause", (done)->
+				coll = new Collection()
+				coll.query "where", name: ['one', 'two']
+				coll.fetch().then ->
+					coll.forEach (m)->
+						name = m.get("name")
+						test = (name == 'one' || name == 'two')
+						expect(test).toEqual(true)
+					done()
+
+			it "should filter by the less than or equal clause", (done)->
+				coll = new Collection()
+				coll.fetch where: value: '<=': 6
+				.then ->
+					coll.forEach (m)->
+						expect(m.get('value')).toBeLessThan(7)
+					done()
+
+		describe "populate", ->
+
+			it "should populate according to a string", (done)->
+				Sails.configure
+					populate: "tests"
+				coll = new Collection()
+				coll.fetch().then ->
+					coll.forEach (m)->
+						expect(m.get("tests")).toBeTruthy()
+					coll.query populate: "test"
+					coll.fetch()
+				.then ->
+					coll.forEach (m)->
+						expect(_.isObject m.get("test")).toEqual(true)
+						expect(m.get("test").id).toBeTruthy()
+					done()
+				.finally ->
+					Sails.configure
+						populate: false
+
+			it "should populate according to an array", (done)->
+				Coll = Collection.extend
+					config:
+						populate: ['tests', 'test']
+				coll = new Coll()
+				coll.fetch().then ->
+					coll.forEach (m)->
+						expect(_.isArray m.get("tests")).toEqual(true)
+						expect(m.get("tests").length).toEqual(1)
+						expect(_.isObject m.get("test")).toEqual(true)
+					coll.query populate: ['test']
+					coll.fetch()
+				.then ->
+					coll.forEach (m)->
+						if _.isArray m.get("tests")
+							expect(m.get("tests").length).toEqual(0)
+						expect(_.isObject m.get("test")).toEqual(true)
+					done()
+
+	describe "query", ->
+		ajaxOnly()
+		populate()
+		query()
+
+	describe "query over socket", ->
+		populate()
+		query()
+
+	describe "message", ->
+		socketOnly()
+		populate()
+
+		it "should send and receive a message on the records referenced", (done)->
+			coll = new Collection()
+			spies = getSpies()
+			coll.fetch( limit: 3, sort: "createdAt ASC" ).then ->
+				coll.at(0).on "messaged", spies.a
+				coll.at(1).on "messaged", spies.b
+				coll.at(2).on "messaged", spies.c
+				coll.message({ some: "data" })
+				.done ->
+					expect(spies.a).toHaveBeenCalled()
+					expect(spies.b).toHaveBeenCalled()
+					expect(spies.c).toHaveBeenCalled()
+					args = spies.a.calls.argsFor(0)
+					expect(args[0]).toEqual(coll.at(0))
+					expect(args[1]).toBeTruthy()
+					expect(args[1].some).toEqual("data")
+					done()
+
+		it "should only send to the models specified by the query clauses", (done)->
+			coll = new Collection()
+			coll.query limit: 1000000
+			spies = getSpies()
+			coll.fetch().then ->
+				coll.on "messaged", spies.a
+				collection = new Collection()
+				collection.query where: name: 'one'
+				collection.message { some: 'data'}, { state: 'server' } # no need to fetch
+			.then ->
+				expect(spies.a).toHaveBeenCalled()
+				argsArray = spies.a.calls.allArgs()
+				for args in argsArray
+					expect(args[0].get("name")).toEqual('one')
+				done()
+			.fail ->
+				console.log arguments
+
+	describe "events", ->
+
+		describe "created", ->
+
+			it "should fire when a model is created", (done)->
+				coll = new Collection()
+				spies = getSpies()
+				m = undefined
+				coll.fetch().then ->
+					coll.on "created", spies.a
+					m = new Model()
+					m.save()
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					args = spies.a.calls.argsFor(0)
+					expect(args[0].id).toEqual(m.id)
+					expect(args[1].data.id).toEqual(m.id)
+					done()
+
+			it "should fire when a new record is added to a record", (done)->
+				coll = new Collection()
+				spies = getSpies()
+				m = new Model()
+				m.save().then ->
+					coll.fetch()
+				.then ->
+					coll.on "created", spies.a
+					m.addTo 'tests', { name: "a pojo" }
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					done()
+
+describe "Associated", ->
+
+	socketOnly()
+
+	describe "wrapper function", ->
+
+		it "should return collection constructor", ->
+			assoc = Sails.Associated(Collection)
+
+			expect(assoc.prototype instanceof Backbone.Collection).toEqual(true)
+			expect(assoc.prototype.model.prototype instanceof Backbone.Model).toEqual(true)
+
+	constructor = =>
+		it "should parse out query parameters and adhere to them", (done)->
+			coll = undefined; assoc = undefined; master = undefined;
+			models.deleteAll().then ->
+				models.associate()
+			.then ->
+				coll = new Collection()
+				coll.fetch()
+			.then ->
+				master = coll.where( name: "master" )[0]
+				assoc = new AssociatedCollection master, 'tests',
+					where: value: '<': 4
+				assoc.fetch()
+			.then ->
+				assoc.forEach (m)->
+					expect(m.get('value')).toBeLessThan(4)
+					expect(m.get('test')).toEqual(master.id)
+				done()
+
+		it "should use a populated attribute to initially populate itself", (done)->
+			models.associate().then (master)->
+				master.query populate: 'tests'
+				master.fetch()
+				.then ->
+					assoc = new AssociatedCollection master, 'tests'
+					expect(assoc.size()).toEqual(10)
+					assoc.forEach (m)->
+						expect(m instanceof assoc.model).toEqual(true)
+					done()
+
+	describe "constructor", ->
+		ajaxOnly()
+		constructor()
+
+		it "should construct from a model instance which is not new, and a key", (done)->
+			model = new Model()
+			model.save().then ->
+
+				assoc = new AssociatedCollection model, 'tests'
+
+				expect(assoc instanceof Backbone.Collection).toEqual(true)
+
+				done()
+
+	describe "constructor over socket", ->
+		constructor()
+
+	fetch = =>
+		it "should fetch records from the associated model only", (done)->
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests'
+				assoc.fetch()
+				.then ->
+					assoc.forEach (m)->
+						expect(m.get('test')).toEqual(master.id)
+					done()
+
+		it "should parse where query param and adhere to them", (done)->
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests'
+				assoc.fetch where: value: '>=': 5
+				.then ->
+					assoc.forEach (m)->
+						expect(m.get('test')).toEqual(master.id)
+						expect(m.get('value')).toBeGreaterThan(4)
+					done()
+
+		it "should parse sort query param and adhere to them", (done)->
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests', sort: name: 1
+				assoc.fetch()
+				.then ->
+					for i in [0..(assoc.models.length - 2)]
+						expect(assoc.models[i].get("name")).toBeLessThan(assoc.models[i+1].get("name"))
+					done()
+
+		it "should not populate any requested keys", (done)->
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests'
+				assoc.query "populate", "test"
+				assoc.fetch()
+				.then ->
+					assoc.forEach (m)->
+						expect(_.isObject m.get('test')).toEqual(false)
+					done()
+
+	describe "fetch", ->
+		ajaxOnly()
+		fetch()
+
+	describe "fetch over socket", ->
+		fetch()
+
+	save = =>
+		it "should add a new record", (done)->
+			spies = getSpies()
+			models.associate().then (master)->
+				master.on "addedTo:tests", spies.a
+				assoc = new AssociatedCollection master, 'tests'
+				assoc.on "addedTo", spies.b
+				addMe = assoc.push name: "something"
+				addMe.save()
+				.then ->
+					if socketConnected()
+						expect(spies.a).toHaveBeenCalled()
+						expect(spies.b).toHaveBeenCalled()
+					expect(assoc.where( name: "something" )).toBeTruthy()
+					done()
+
+		it "should add an existing record", (done)->
+			spies = getSpies()
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests'
+				assoc.on "addedTo", spies.a
+				master.on "addedTo", spies.b
+				added = assoc.push master
+				added.save()
+				.then ->
+					if socketConnected()
+						expect(spies.a).toHaveBeenCalled()
+						expect(spies.b).toHaveBeenCalled()
+					expect(assoc.where( name: "master" )).toBeTruthy()
+					expect(added.get("test")).toEqual(master.id)
+					done()
+
+		it "should update an existing record", (done)->
+			spies = getSpies()
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests'
+				assoc.fetch()
+				.then ->
+					m = assoc.at(0)
+					clone = new Model m.attributes
+					clone.set "name", "updated"
+					m.on "updated:name", spies.a
+					assoc.on "updated:name", spies.b
+					clone.save()
+					.then ->
+						if socketConnected()
+							expect(spies.a).toHaveBeenCalled()
+							expect(spies.b).toHaveBeenCalled()
+						expect(clone.get("name")).toEqual("updated")
 						done()
-				else
-					done()
 
-			it "should be able to save over ajax", (done) ->
-				if !first
-
-					m = new TestModel
-						name: "save me"
-					,
-						socketSync: false
-						subscribe: false
-
-					disconnect()
-
-					spies =
-						f: ->
-
-					spyOn spies, 'f'
-
-					m.on "socketSync", spies.f
-
-					m.save().done ->
-
-						expect(m.id).toBeTruthy()
-
-						connect()
-
-						wait(2 * deferDelay).done ->
-
-							expect(spies.f).not.toHaveBeenCalled()
-
-							done()
-
-				else
-					done()
-
-			it "should delegate to ajax, subscribing over sockets", (done) ->
-
-				if !first
-
-					m = new TestModel
-						name: "onetwothree"
-					,
-						socketSync: false
-
-					spies =
-						f: ->
-
-					spyOn spies, 'f'
-
-					m.on "subscribed", spies.f
-
-					disconnect()
-
-					m.save {},
-						subscribe: true
-					.done ->
-
-						expect(spies.f).not.toHaveBeenCalled()
-
-						connect()
-
-						wait(deferDelay * 2).done ->
-
-							expect(spies.f).toHaveBeenCalled()
-
-							m.on "updated:value", (model, val) ->
-
-								expect(val).toEqual(8)
-
-								done()
-
-				else
-					newColl = new TestCollection()
-
-					newColl.fetch
-						socketSync: true
-					.done ->
-
-						newColl.on "created", (data)->
-
-							if data.name == "onetwothree"
-
-								expect(data.name).toEqual("onetwothree")
-
-								wait(4 * deferDelay).done ->
-									m = new TestModel(data)
-									m.set "value", 8
-									m.save {},
-										socketSync: true
-									.done ->
-										done()
-
-			it "should be able to fetch, given an id", (done)->
-				if !first
-
-					newColl = new TestCollection()
-
-					newColl.fetch().done ->
-
-						m = newColl.at(0)
-
-						id = m.id
-
-						m = new TestModel id: id
-
-						m.fetch().done ->
-
-							expect(m.id).toBeTruthy()
-
-							done()
-				else
-					done()
-
-			it "should parse socketSync and subscribe from fetch options", (done) ->
-
-				if !first
-
-					newColl = new TestCollection()
-
-					newColl.fetch().done ->
-
-						m = newColl.at(0)
-
-						m = new TestModel id: m.id
-
-						spies =
-							f: ->
-
-						spyOn spies, 'f'
-
-						m.on "socketSync", spies.f
-
-						disconnect()
-
-						m.fetch
-							socketSync: false
-							subscribe: false
-						.done ->
-							expect(spies.f).not.toHaveBeenCalled()
-
-							connect()
-
-							wait(deferDelay * 2).done ->
-								expect(spies.f).not.toHaveBeenCalled()
-
-								done()
-				else
-					done()
-
-			it "should be able to destroy", (done)->
-				if !first
-					newColl = new TestCollection()
-
-					newColl.fetch( socketSync: true ).done ->
-
-						m = newColl.at(0)
-
-						# create a new collection
-						# destroy won't be called on first collection created
-						# since the model instance will be removed by backbone
-						newColl = new TestCollection()
-
-						newColl.fetch().done ->
-
-							spies =
-								f: ->
-
-							spyOn spies, 'f'
-
-							newColl.on "destroyed", spies.f
-
-							m.destroy().done ->
-
-								wait(deferDelay).done ->
-									expect(spies.f).toHaveBeenCalled()
-									done()
-
-				else
-					done()
-
-			it "should be able to destroy over ajax, regardless of socketSync", (done)->
-				if !first
-					newColl = new TestCollection()
-
-					newColl.fetch( socketSync: true ).done ->
-
-						m = newColl.at(0)
-
-						# create a new collection
-						# destroy won't be called on first collection created
-						# since the model instance will be removed by backbone
-						newColl = new TestCollection()
-
-						newColl.fetch().done ->
-
-							spies =
-								f: ->
-
-							spyOn spies, 'f'
-
-							newColl.on "destroyed", spies.f
-
-							disconnect()
-							m.destroy( socketSync: true ).done ->
-
-								wait(deferDelay).done ->
-									expect(spies.f).toHaveBeenCalled()
-
-									connect()
-									done()
-				else
-					done()
-
-			it "should be able to query populate clauses", (done) ->
-				if !first
-
-					newColl = new TestCollection()
-
-					newColl.query().populate("tests")
-
-					newColl.fetch().done ->
-						for models in newColl.models
-							expect(models.get("tests")).toBeTruthy()
-
+	describe "save", ->
+		ajaxOnly()
+		save()
+
+	describe "save over socket", ->
+		save()
+
+	destroy = =>
+		it "should remove from an associated collection, when called", (done)->
+			spies = getSpies()
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests'
+				assoc.fetch().then ->
+					model = assoc.at(0)
+					assoc.on "removedFrom", spies.a
+					model.destroy()
+					.then ->
+						if socketConnected()
+							expect(spies.a).toHaveBeenCalled()
+							argsA = spies.a.calls.argsFor(0)
+							expect(argsA[0]).toEqual(model.id)
+						expect(assoc.size()).toEqual(9)
 						done()
 
-				else
+	describe "destroy", ->
+		ajaxOnly()
+		destroy()
+	describe "destroy over socket", ->
+		destroy()
+
+	fetchModel = =>
+		it "should be able to fetch the state of an added model", (done)->
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests'
+				assoc.fetch().then ->
+					model = assoc.at(0)
+					model.fetch()
+					.then ->
+						model.fetch()
+					.then ->
+						expect(model.hasChanged()).toEqual(false)
+						done()
+
+	describe "fetch model", ->
+		ajaxOnly()
+		fetchModel()
+	describe "fetch model over socket", ->
+		fetchModel()
+
+	addPushUnshift = =>
+		it "should coerce to the internal model and add to the collection", (done)->
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests'
+				assoc.fetch()
+				.then ->
+					mPush = new Model name: "push"
+					mAdd = new Model name: "add"
+					mUnshift = new Model name: "unshift"
+					mPush = assoc.push mPush
+					mAdd = assoc.add mAdd
+					mUnshift = assoc.unshift mUnshift
+					saving = for model in assoc.models
+						if model.isNew()
+							model.save()
+						else
+							true
+					Q.all(saving).then ->
+						assoc.fetch()
+					.then ->
+						expect(assoc.size()).toEqual(13)
+						expect(mPush instanceof assoc.model).toEqual(true)
+						expect(mAdd instanceof assoc.model).toEqual(true)
+						expect(mUnshift instanceof assoc.model).toEqual(true)
+						done()
+
+	describe "add, push and unshift", ->
+		ajaxOnly()
+		addPushUnshift()
+	describe "add, push and unshift over socket", ->
+		addPushUnshift()
+
+	describe "message", ->
+		it "should still work for an associated collection", (done)->
+			assoc = null; spies = getSpies();
+			models.associate().then (master)->
+				assoc = new AssociatedCollection master, 'tests', sort: createdAt: 1
+				assoc.fetch()
+			.then ->
+				model = assoc.at(0)
+				model.on "fire", spies.a
+				assoc.on "fire", spies.b
+				another = assoc.at(0)
+				another.message "fire", { welcome: "to hell" }
+				.then ->
+					expect(spies.a).toHaveBeenCalled()
+					expect(spies.b).toHaveBeenCalled()
+					args = spies.a.calls.argsFor(0)
+					expect(args[0]).toEqual(model)
+					expect(args[1]).toBeTruthy()
+					expect(args[1].welcome).toEqual('to hell')
+
+					assoc.message("fire", { say: "hi" })
+				.then ->
+					expect(spies.b.calls.count()).toEqual(11)
 					done()
 
-			it "should be able to add to", (done) ->
 
-				if !first
-
-					m = new TestModel name: "im new"
-
-					m.save().done ->
-
-						m.addTo "tests",
-							name: "im also new"
-						,
-							update: true
-						.done ->
-
-							expect(m.get("tests")).toBeTruthy()
-							expect(m.get("tests").length).toEqual(1)
-							expect(m.get("tests")[0].name).toEqual("im also new")
-
-							another = new TestModel name: "wahay!"
-
-							# no update this time
-							m.addTo("tests", another).done ->
-								expect(m.get("tests").length).toEqual(1)
-
-								m = new TestModel id: m.id
-
-								m.fetch populate: "tests"
-								.done ->
-									expect(m.get("tests").length).toEqual(2)
-
-									done()
-
-				else
-					done()
-
-			it "should be able to remove from", (done) ->
-
-				if !first
-
-					m = new TestModel name: "im new"
-
-					m.save().done ->
-
-						assoc = new AssociatedTestCollection m, 'tests'
-
-						m1 = assoc.push name: "im first"
-						m2 = assoc.push name: "im second"
-
-						$.when(m1.save(), m2.save()).done ->
-
-							id1 = m1.id
-							id2 = m2.id
-
-							m.fetch populate: "tests"
-							.done ->
-
-								expect(m.get("tests").length).toEqual(2)
-
-								m.removeFrom 'tests', m1, update: true
-								.done ->
-
-									expect(m.get("tests").length).toEqual(1)
-
-									m.removeFrom 'tests',
-										id: id2
-									.done ->
-
-										expect(m.get("tests").length).toEqual(1)
-
-										m.fetch populate: 'tests'
-										.done ->
-
-											expect(m.get('tests').length).toEqual(0)
-
-											done()
-
-				else
-					done()
-
-			it "should subscribe when requested", (done)->
-
-				if !first
-
-					newColl = new TestCollection()
-
-					newColl.fetch().done ->
-
-						m = newColl.at(0)
-
-						id = m.id
-
-						another = new TestModel id: id
-
-						spies =
-							f: ->
-
-						spyOn spies, 'f'
-
-						another.on "updated", spies.f
-
-						m.set "name", "something else"
-
-						m.save().done ->
-
-							expect(spies.f).not.toHaveBeenCalled()
-
-							another.subscribe().done ->
-
-								m.save().done ->
-
-									# will fire updated server side regardless
-									# which will be forwarded after dirty checking
-									expect(spies.f).toHaveBeenCalled()
-
-									done()
-
-				else
-					done()
-
-			it "should fire the addedTo event", (done) ->
-
-				name = "a unique identity"
-
-				if !first
-					model = new TestModel name: name
-					model.save().done ->
-
-						spies =
-							f: ->
-							g: ->
-
-						spyOn spies, 'f'
-						spyOn spies, 'g'
-
-						model.once "addedTo", spies.f
-						model.once "addedTo:tests", spies.g
-
-						wait(deferDelay).done ->
-							expect(spies.f).toHaveBeenCalled()
-							expect(spies.g).toHaveBeenCalled()
-
-							done()
-
-				else
-					newColl = new TestCollection()
-					newColl.fetch().done ->
-
-						newColl.on "created", (data) ->
-							if data.name == name
-								model = new TestModel data
-
-								model.addTo 'tests', name: "monica"
-								.done ->
-									done()
-
-			it "should fire the updated event", (done) ->
-				lastspec = true
-
-				newColl = new TestCollection()
-				newColl.fetch().done ->
-
-					name = "Fred"
-					if !first
-						m = newColl.push name: name
-						m.save().done ->
-							newColl.once "updated:value", (model, val, e)->
-								expect(val).toEqual(5)
-								expect(e).toBeTruthy()
-								expect(model).toEqual(m)
-
-								done()
-					else
-						newColl.once "created", (data, e)->
-							expect(data.name).toEqual(name)
-							expect(e).toBeTruthy()
-							m = new TestModel data
-							m.set "value", 5
-							m.save().done ->
-								done()
+#stressTest = =>
+#	it "creating and deleting models", (done)->
+#		start = Date.now()
+#		number = 100
+#		creating = for i in [1..number]
+#			(new Model()).save()
+#		Q.all(creating).then ->
+#			end = Date.now()
+#			console.info "creating a record took #{Math.round((end - start)/number)}ms"
+#
+#			coll = new Collection [], limit: 1000000
+#			coll.fetch().then ->
+#				size = coll.size()
+#				start = Date.now()
+#				deleting = for m in coll.models.slice()
+#					m.destroy()
+#				Q.all(deleting).then ->
+#					end = Date.now()
+#					console.info "deleting a record took #{Math.round((end - start)/size)}ms"
+#					done()
+#
+#describe "stress test", ->
+#	ajaxOnly()
+#	stressTest()
+#
+#describe "stress test over socket", ->
+#	socketOnly()
+#	stressTest()
 

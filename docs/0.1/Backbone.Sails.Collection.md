@@ -8,21 +8,15 @@
  
  * ### [`.fetch([options])`](#fetchoptions-1)
  
- * ### [`.query([criteria])`](#querycriteria-1)
+ * ### [`.configure(criteria[key, val])`](#configurekey-valcriteria-1)
  
- * ### [`.subscribe()`](#subscribe-1)
+ * ### [`.query(criteria[key, val])`](#querykey-valcriteria-1)
+ 
+ * ### [`.message([customEvent,] data)`](#messagecustomevent-data-1)
  
 * ## [Events](#events-1)
 
  * ### [`"created" (modelData, socketEvent)`](#created)
- 
- * ### [`"socketSync" (collection, response, options)`](#socketsync)
-  
- * ### [`"socketError" (collection, response, options)`](#socketerror)
-  
- * ### [`"socketRequest" (collection, promise, options)`](#socketrequest)
-  
- * ### [`"subscribed:collection" (collection, modelName)`](#subscribedcollection)
  
 * ## [Events bubbled from `Backbone.Sails.Model`](#events-bubbled-from-backbonesailsmodel-1)
 
@@ -40,15 +34,9 @@
  
  * ### [`"updated:attribute" (model, value, socketEvent)`](#updatedattribute)
  
- * ### [`"messaged" (model, socketEvent)`](#messaged)
+ * ### [`"messaged" (model, data, socketEvent)`](#messaged)
  
- * ### [`"socketSync" (model, response, options)`](#socketsync-1)
- 
- * ### [`"socketError" (model, response, options)`](#socketerror-1)
- 
- * ### [`"socketRequest" (model, promise, options)`](#socketrequest-1)
- 
- * ### [`"subscribed:model" (model, modelName)`](#subscribedmodel)
+ * ### [`"customEvent (model, data, socketEvent)"`](#customevent)
 
 ***
 

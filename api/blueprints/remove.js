@@ -62,7 +62,15 @@ module.exports = function remove(req, res) {
           Model.publishRemove(parentRecord[Model.primaryKey], relation, childPk, !sails.config.blueprints.mirror && req);
         }
 
-        return res.ok(parentRecord);
+		    // TODO - returning the record removed here
+        // return res.ok(parentRecord);
+
+		    ChildModel.findOne(childPk).exec(function(err, childRecord) {
+			    if (err) return res.serverError(err);
+			    if (!childRecord) return res.serverError();
+
+			    res.ok(childRecord)
+		    })
       });
     });
   });

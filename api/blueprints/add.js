@@ -77,9 +77,13 @@ module.exports = function addToCollection (req, res) {
     // Look up the parent record
     parent: function (cb) {
       Model.findOne(parentPk).exec(function foundParent(err, parentRecord) {
-        if (err) return cb(err);
-        if (!parentRecord) return cb({status: 404});
-        if (!parentRecord[relation]) return cb({status: 404});
+        if (err)
+	        return cb(err);
+        if (!parentRecord)
+	        return cb({status: 404});
+        if (!parentRecord[relation])
+	        return cb({status: 404});
+
         cb(null, parentRecord);
       });
     },
