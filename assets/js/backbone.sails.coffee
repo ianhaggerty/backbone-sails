@@ -70,7 +70,7 @@
 				to.reject.apply to, arguments
 		timeout: (defer) ->
 			timeout = Sails.config.timeout
-			if timeout
+			if timeout != false
 				to = setTimeout ->
 					defer.reject "Timed out after #{timeout}ms"
 				, timeout
@@ -91,7 +91,7 @@
 			, Sails.config.poll
 
 			return boolF.polling
-		wrap: (promise)-> Sails.config.promise(promise)
+		wrap: (promise, internal)-> if internal then promise else Sails.config.promise(promise)
 
 	configPrefix = '_config_'
 	getConfig = (key, options, instance) ->
@@ -127,6 +127,10 @@
 
 	socketConnected = ->
 		socketClient?.socket?.connected
+
+	# expose a public connected boolean
+	Sails.connected = ->
+		Boolean socketConnected()
 
 	socketConnecting = ->
 		promise.timeout(promise.pollFor(socketConnected))
@@ -178,7 +182,8 @@
 			# make request
 			promise.chain sendSocketRequest(method, instance, options), result
 
-		.fail result.reject
+		.fail ->
+			result.reject.apply result, arguments
 
 		result
 
@@ -288,6 +293,7 @@
 		options = _.clone options
 
 		if isAssociated instance
+			# don't populate associated instances
 			options.populate = false
 
 		if socketSync && socketConnected()
@@ -301,9 +307,13 @@
 			result = sendingAjaxRequest method, instance, options
 
 			if socketSync && method != 'delete'
+				# TODO 'fireback' only on instances persisted
+				# TODO deal with 'suppress' option
 				# server-subscribe the instance
 				result.done ->
 					options = _.clone(options)
+					fireback = getConfig 'fireback', options, instance
+					options.suppress = if fireback==false then true else false
 					options.success = delegateSuccess || ->
 					options.method = 'GET'
 					options.sync = "socket"
@@ -343,7 +353,7 @@
 			message = new FakeModel data
 			message.save {}, options # post a message
 
-		addTo: (key, model, options = {})->
+		addTo: (key, model, options = {}, internal = false)->
 			if @isNew()
 				idError()
 
@@ -356,9 +366,9 @@
 				wrapId model, options
 				options.method = 'POST' # POST a new association
 
-			promise.wrap model.save({}, options)
+			promise.wrap model.save({}, options), internal
 
-		removeFrom: (key, model, options = {}) ->
+		removeFrom: (key, model, options = {}, internal = false) ->
 			if @isNew()
 				idError()
 
@@ -372,9 +382,9 @@
 
 			wrapId model, options
 
-			promise.wrap model.destroy(options)
+			promise.wrap model.destroy(options), internal
 
-		destroy: (options) ->
+		destroy: (options, internal = false) ->
 			options = if options then _.clone(options) else {}
 			model = this;
 			success = options.success;
@@ -400,9 +410,9 @@
 
 			if (!options.wait) then destroy()
 
-			promise.wrap result
+			promise.wrap result, internal
 
-		save: (key, val, options) ->
+		save: (key, val, options, internal = false) ->
 			# this is mostly backbone, except for 'delegateSuccess'
 			attributes = @attributes
 			if key == null || typeof key == 'object'
@@ -459,9 +469,9 @@
 
 			if attrs && options.wait then @attributes = attributes
 
-			promise.wrap result
+			promise.wrap result, internal
 
-		fetch: (options) ->
+		fetch: (options, internal = false) ->
 			options = if options then _.clone(options) else {}
 
 			if (!options.parse)
@@ -491,7 +501,7 @@
 				options: options
 				delegateSuccess: delegateSuccess
 
-			promise.wrap result
+			promise.wrap result, internal
 
 		subscribe: ->
 			if @isNew()
@@ -562,7 +572,7 @@
 	class FakeModel extends Sails.Model
 		modelName: '/fake'
 
-	messageCollection = (coll, url, namespace, data = {}, options = {})->
+	messageCollection = (coll, url, namespace, data = {}, options = {}, internal = false)->
 		if _.isObject namespace
 			options = data
 			data = namespace
@@ -592,7 +602,7 @@
 		## client state will message model instances currently in the collection
 		else if state == 'client' || true
 			if !coll.size()
-				return promise.wrap($.Deferred().resolve())
+				return promise.wrap($.Deferred().resolve(), internal)
 			else
 				options.where = {}
 
@@ -616,7 +626,7 @@
 		message: (namespace, data, options) ->
 			messageCollection(@, "/#{@modelName}/message", namespace, data, options)
 
-		fetch: (options) ->
+		fetch: (options, internal = false) ->
 			options = if options then _.clone(options) else {}
 			if !options.parse? then options.parse = true
 			success = options.success
@@ -641,7 +651,7 @@
 				options: options
 				delegateSuccess: delegateSuccess
 
-			promise.wrap result
+			promise.wrap result, internal
 
 		subscribe: ->
 			if @subscribed
@@ -690,7 +700,7 @@
 
 		class AssociatedModel extends PreviousModel
 
-			save: (key, val = {}, options = {})->
+			save: (key, val = {}, options = {}, internal = false)->
 				defer = $.Deferred()
 				self = @
 				twoArgs = _.isNull key || _.isObject key
@@ -699,14 +709,14 @@
 				if @isNew()
 					# POST /model/id/assoc = create & addTo
 					opts.url = @collection.url()
-					createAndAddTo = super(key, val, options)
+					createAndAddTo = super(key, val, options, true)
 					createAndAddTo.done ->
 						self.associated.added = true
 					promise.chain createAndAddTo, defer
 				else
 					# PUT /associatedmodel/associd = update
-					if twoArgs then update = super(key, _.clone val)
-					else update = super(key, val, _.clone options)
+					if twoArgs then update = super(key, _.clone(val), options, true)   # val is options
+					else update = super(key, val, _.clone(options), true)              # options is options
 
 					if !@associated.added
 						opts.url = @collection.url()
@@ -715,7 +725,7 @@
 						# after update
 						# POST /model/id/assoc = addTo
 						add = ->
-							addTo = super(key, val, options)
+							addTo = super(key, val, options, true)
 							addTo.done ->
 								self.associated.added = true
 								defer.resolve.apply defer, arguments
@@ -730,12 +740,12 @@
 					else
 						promise.chain update, defer
 
-				promise.wrap defer.promise()
+				promise.wrap defer.promise(), internal
 
-			destroy: (options = {}) ->
+			destroy: (options = {}, internal = false) ->
 				# DELETE /model/id/assoc = removeFrom
 				wrapId @, options
-				promise.wrap super(options)
+				promise.wrap super(options, true), internal
 
 			constructor: ->
 				@modelName = previousModelName
