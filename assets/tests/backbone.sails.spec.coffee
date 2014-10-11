@@ -1,11 +1,9 @@
 Sails = Backbone.Sails
 
 Sails.configure
-	promise: (promise)-> Q(promise)
-	poll: 50
-	timeout: false
+	promise: (promise)-> Promise.resolve(promise)
 
-jasmine.DEFAULT_TIMEOUT_INTERVAL = 120000
+jasmine.DEFAULT_TIMEOUT_INTERVAL = 20000
 
 class Model extends Sails.Model
 	modelName: "testmodel"
@@ -28,7 +26,7 @@ onConnect = (cb) ->
 			setTimeout handle, 50
 	handle()
 wait = (delay)->
-	Q.Promise (res) ->
+	new Promise (res) ->
 		setTimeout res, delay
 
 numbers =
@@ -42,6 +40,7 @@ numbers =
 	eight: 8
 	nine: 9
 	ten: 10
+
 models =
 	deleteAll: ->
 		coll = new Collection()
@@ -51,8 +50,7 @@ models =
 			copy = coll.models.slice()
 			deleting = for m in copy
 				m.destroy()
-			Q.all deleting
-
+			Promise.all deleting
 	populate: ->
 		coll = new Collection()
 		for key, num of numbers
@@ -61,12 +59,12 @@ models =
 				value: num
 		creating = for m in coll.models
 			m.save()
-		Q.all creating
+		Promise.all creating
 		.then ->
 			addingTo = for m, i in coll.models
 				# index = (i + 1) % (coll.models.length)
 				m.addTo 'tests', m
-			Q.all addingTo
+			Promise.all addingTo
 	associate: ->
 		m = new Model name: "master"
 		m.save().then ->
@@ -74,7 +72,7 @@ models =
 				m.addTo 'tests',
 					name: key
 					value: val
-			Q.all addingTo
+			Promise.all addingTo
 		.then ->
 			m
 
@@ -111,7 +109,7 @@ describe "test utilities", ->
 			coll = undefined
 			populating = for i in [1..10]
 				(new Model()).save()
-			Q.all(populating)
+			Promise.all(populating)
 			.then ->
 				models.deleteAll()
 			.then ->
@@ -449,7 +447,7 @@ describe "Model", ->
 
 	addTo = =>
 		it "should add a new record", (done)->
-			m = new Model( name: "addToMe"); added = undefined
+			m = new Model( name: "addToMe"); added = undefined;
 			m.save().then ->
 				added = new Model( name: "added" )
 				m.addTo 'tests', added
@@ -1019,7 +1017,7 @@ describe "Collection", ->
 				for args in argsArray
 					expect(args[0].get("name")).toEqual('one')
 				done()
-			.fail ->
+			.error ->
 				console.log arguments
 
 	describe "events", ->
@@ -1276,7 +1274,7 @@ describe "Associated", ->
 							model.save()
 						else
 							true
-					Q.all(saving).then ->
+					Promise.all(saving).then ->
 						assoc.fetch()
 					.then ->
 						expect(assoc.size()).toEqual(13)
@@ -1323,7 +1321,7 @@ describe "Associated", ->
 #		number = 100
 #		creating = for i in [1..number]
 #			(new Model()).save()
-#		Q.all(creating).then ->
+#		Promise.all(creating).then ->
 #			end = Date.now()
 #			console.info "creating a record took #{Math.round((end - start)/number)}ms"
 #
@@ -1333,7 +1331,7 @@ describe "Associated", ->
 #				start = Date.now()
 #				deleting = for m in coll.models.slice()
 #					m.destroy()
-#				Q.all(deleting).then ->
+#				Promise.all(deleting).then ->
 #					end = Date.now()
 #					console.info "deleting a record took #{Math.round((end - start)/size)}ms"
 #					done()
