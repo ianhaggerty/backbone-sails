@@ -34,4 +34,4 @@ module.exports.connections =
     host: "localhost"
     port: 27017
     # TODO - switch to database for you app development
-    database: "testdb"
+    database: "test"

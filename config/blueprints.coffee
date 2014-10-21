@@ -85,7 +85,7 @@ module.exports.blueprints =
 	`sails.config.routes`)
 	###
 
-	# prefix: '',
+	prefix: '',
 
 	###
 	Whether to pluralize controller names in blueprint routes.
@@ -110,7 +110,6 @@ module.exports.blueprints =
 	If you have a lot of data in one-to-many associations, leaving this on
 	may result in very heavy api calls
 	###
-
 	populate: false,
 
 	###
@@ -118,14 +117,10 @@ module.exports.blueprints =
 	action. Doubles as the default size of populated arrays if populate is
 	true.
 	###
-
 	defaultLimit: 30
 
 	#	watch for create events from find
 	autowatch: true
 
-	#	watch for update/delete event from find and findOne
+	#	mirror socket events back to client
 	mirror: true
-
-
-

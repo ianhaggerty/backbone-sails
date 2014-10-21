@@ -23,7 +23,7 @@ ExamplesApp.module "ChatClientApp.Message.List", (List) ->
 					# we'll have to send another request, and then
 					# add to the messages collection
 					message = new ExamplesApp.ChatClientApp.Entities.Message data
-					message.query().populate "user"
+					message.query "populate", "user"
 					message.fetch().done ->
 						messages.add message
 

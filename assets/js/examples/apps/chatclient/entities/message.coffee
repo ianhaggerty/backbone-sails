@@ -7,5 +7,3 @@ ExamplesApp.module "ChatClientApp.Entities", (Entities) ->
 		modelName: "chatclientmessage"
 		comparator: (message) ->
 			(new Date(message.get("createdAt"))).getTime()
-
-	Entities.AssociatedMessageCollection = Backbone.Sails.Associated Entities.MessageCollection
