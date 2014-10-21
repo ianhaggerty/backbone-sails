@@ -36,7 +36,7 @@ var Person = Backbone.Sails.Model.extend({
 })
 var PersonCollection = Backbone.Sails.Collection.extend({ model: Person })
 
-var Address = Backbone.Sails.Model.extend({
+Address = Backbone.Sails.Model.extend({
   modelName: "address"
   assoc: {
     occupants: PersonCollection
@@ -57,9 +57,11 @@ address.set("number", 4).save();
 // fetch is overloaded to call the 'populate' action, resolving with the address as a model
 fred.fetch("address").done(function(address){
   var jack = new Person({ name: "jack" })
-  address.addTo('occupants', jack); // will call the 'addTo' action, updating both the address and jack
-  jack.isNew(); // false
-  address.get("occupants", true).findWhere({ name:"jack" }); // truthy (since occupants populated)
+  address.addTo('occupants', jack) // will call the 'addTo' action, updating both the address and jack
+  .done(function(){
+    jack.isNew(); // false
+    address.get("occupants", true).findWhere({ name:"jack" }); // truthy (since occupants populated)
+  })
 })
 
 // you can specify filter criteria like this
