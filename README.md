@@ -104,3 +104,6 @@ Backbone.Sails depends on
 
 **On the server**, copy/paste the blueprints folder to `api/blueprints`. The blueprints are backwards compatible with the original sails blueprints.
 
+#### Documentation/Learning
+
+I am in the process of writing the docs. For now, you can get a good idea of what Backbone.Sails is capable of by looking at the [test code](https://github.com/iahag001/Backbone.Sails/blob/master/assets/tests/backbone.sails.spec.coffee).
