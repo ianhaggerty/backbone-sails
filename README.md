@@ -1,7 +1,3 @@
-|*This library is a work in progress. I was planning on a release sooner, but I haven't been satisfied with the API as of yet. The glue code between these two libraries it proving more tedious than previously hoped!*
-
----
-
 Backbone.Sails
 ==============
 
