@@ -1,4 +1,5 @@
 actionUtil = require './helpers/actionUtil'
+async = require "async"
 
 module.exports = (req, res)->
 
@@ -8,46 +9,49 @@ module.exports = (req, res)->
 
 	parsedData = actionUtil.parseData data, Model
 
-	Model.create(parsedData.raw).exec (err, newInstance) ->
-		if err then return res.negotiate err
+	auto = {}
+	aliases = _.keys parsedData.associated
 
-		auto = {}
-		aliases = _.keys parsedData.associated
+	# todo - roll back created instances on error
+	# TODO - optimise if no populate/addto requests
 
-		# todo - roll back created instances on error
-		# TODO - optimise if no populate/addto requests
+	# first, create the associated records necessary
+	_.forOwn parsedData.associated, (relation, alias)->
+		if relation.create.length
+			auto[alias] = (cb)->
+				relation.Model.create(relation.create).exec (err, associatedRecordsCreated) ->
+					if err then return cb(err)
+					if !associatedRecordsCreated
+						sails.log.warn 'No associated records were created for some reason...'
 
-		_.forOwn parsedData.associated, (relation, alias)->
-
-			if relation.create.length
-				auto[alias] = (cb)->
-					relation.Model.create(relation.create).exec (err, associatedRecordsCreated) ->
-						if err then return cb(err)
-						if !associatedRecordsCreated
-							sails.log.warn 'No associated records were created for some reason...'
-
-						## subscribe to all associated instances created
-						if req._sails.hooks.pubsub
-							if req.isSocket
-								for associatedRecord in associatedRecordsCreated
-									# only subscribe to records returned
-									# relation.Model.subscribe req, associatedRecord
-									relation.Model.introduce associatedRecord
-
+					## subscribe to all associated instances created
+					if req._sails.hooks.pubsub
+						if req.isSocket
 							for associatedRecord in associatedRecordsCreated
-								relation.Model.publishCreate associatedRecord, !req.options.mirror && req
+								# only subscribe to records returned
+								# relation.Model.subscribe req, associatedRecord
+								relation.Model.introduce associatedRecord
 
-						ids = _.pluck associatedRecordsCreated, relation.Model.primaryKey
-						cb(null, ids)
+						for associatedRecord in associatedRecordsCreated
+							relation.Model.publishCreate associatedRecord, !req.options.mirror && req
 
-		async.auto auto, (error, data)->
-			if error then return res.negotiate(err)
+					ids = _.pluck associatedRecordsCreated, relation.Model.primaryKey
+					cb(null, ids)
 
-			for alias, relation of parsedData.associated
-				# created records are to be added as well
-				ids = data?[alias] || []
-				parsedData.associated[alias].idsToAdd = _.uniq parsedData.associated[alias].add.concat(ids)
+	async.auto auto, (error, data)->
+		if error then return res.negotiate(err)
 
+		for alias, relation of parsedData.associated
+			# created records are to be added as well
+			ids = data?[alias] || []
+			parsedData.associated[alias].idsToAdd = _.uniq parsedData.associated[alias].add.concat(ids)
+
+			if relation.association.type == 'model' && relation.idsToAdd.length
+				# model, id should be at add[0]
+				parsedData.raw[relation.association.alias] = relation.idsToAdd[0]
+
+		Model.create(parsedData.raw).exec (err, newInstance) ->
+			if err then return res.negotiate err
 
 			for alias, relation of parsedData.associated
 				if relation.association.type == 'collection'
@@ -62,9 +66,6 @@ module.exports = (req, res)->
 
 						catch err
 							if err then return res.negotiate(err)
-				else if relation.association.type == 'model' && relation.idsToAdd.length
-					# model, id should be at add[0]
-					newInstance[relation.association.alias] = relation.idsToAdd[0]
 
 			newInstance.save (err)->
 				if err then return res.negotiate err
@@ -103,3 +104,4 @@ module.exports = (req, res)->
 
 					res.status(201)
 					res.ok populatedRecord # .toJSON()
+

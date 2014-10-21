@@ -9,7 +9,7 @@
   module.exports = function(req, res) {
     var Model, query;
     if (actionUtil.parsePk(req)) {
-      return require('./findone')(req, res);
+      return require('./findOne')(req, res);
     }
     Model = actionUtil.parseModel(req);
     query = Model.find().where(actionUtil.parseCriteria(req)).limit(actionUtil.parseLimit(req)).skip(actionUtil.parseSkip(req)).sort(actionUtil.parseSort(req));
