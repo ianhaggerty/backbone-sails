@@ -1,6 +1,6 @@
 module.exports =
-	attributes:
-		name: "string"
-		messages:
-			collection: "ChatClientMessage"
-			via: "user"
+  attributes:
+    name: "string"
+    messages:
+      collection: "ChatClientMessage"
+      via: "user"

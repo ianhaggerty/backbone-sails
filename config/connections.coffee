@@ -33,5 +33,4 @@ module.exports.connections =
     adapter: "sails-mongo"
     host: "localhost"
     port: 27017
-    # TODO - switch to database for you app development
     database: "test"
