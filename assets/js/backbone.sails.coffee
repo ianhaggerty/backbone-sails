@@ -227,8 +227,8 @@
       # make request
       promise.chain sendSocketRequest(method, instance, options), result
 
-    .fail ->
-      result.reject.apply result, arguments
+    .fail (timeout)->
+      result.reject(timeout, method, instance, options)
 
     result
 
@@ -629,7 +629,7 @@
 
         else
           defer = $.Deferred()
-          instance = new (@assoc[key])(@get(key), options)
+          instance = new (@assoc[key])(@get(key))#, options)
           opts = (options && _.cloneDeep(options)) || {}
           opts.populate = false
           opts.url = @url() + "/#{key}"

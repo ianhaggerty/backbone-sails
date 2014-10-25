@@ -90,4 +90,53 @@ The criteria passed goes directly into Waterline on the server side, giving you 
 
 Sails actually has an independent `populate` blueprint designed specifically to return associated record(s). For the person model defined above, the following routes would be generated:
 
+* GET `/person/:id/parents`     = [`populate`](http://sailsjs.org/#/documentation/reference/blueprint-api/Populate.html) blueprint
+* GET `/person/:id/children`    = [`populate`](http://sailsjs.org/#/documentation/reference/blueprint-api/Populate.html) blueprint
+* GET `/person/:id/spouse`    = [`populate`](http://sailsjs.org/#/documentation/reference/blueprint-api/Populate.html) blueprint
 
+Backbone.Sails overloads `fetch()` to allow you to take advantage of this action. `fetch()` normally takes a single optional options object, however, you can pass a string as the first argument to make a request to populate a certain attribute. This response from the server is the populated attribute alone - meaning there is no update to the model on which `fetch()` is called, it instead resolves a promise with the associated model as the first argument. An example should clear things up:
+
+```javascript
+jill = new Person({ id: "123" });
+
+// let's populate jill's spouse without necessarily getting jill
+jill.fetch("spouse").done(function(spouse){
+  
+  // here, spouse will be a `Person` model, representing Jill's spouse
+  spouse.set("spouse", null)
+  spouse.save() // a divorce
+  
+})
+```
+
+You cannot further populate the `populate` action. So there are no options to populate the response this way. You can, however, specify filter criteria for associated collections. Therefore, you can pass filter criteria as part of the `options` object to `fetch()` in order to tailor the response:
+
+```javascript
+jill = new Person({ id: "123" });
+
+jill.fetch("children", { limit: 3, where: { name: { startsWith: "I" } } }).done(function(children){
+
+  ian = children.findWhere({ name: "Ian" })
+  
+  ian.set("name", "Oscar")
+  ian.save()
+
+})
+```
+
+When fetching a populated associated collection in this manner, the collection returned will have it's `url` determined via it's `modelName` attribute. If you want to fetch the updated state of the associated collection, you'll have to issue another populate request, or, you can set the url of the collection to the corresponding `populate` action url, and issue a fetch from there:
+
+```javascript
+jill = new Person({ id: "123" });
+
+jill.fetch("children").done(function(children){
+
+  // if we want to know about any addition or removal of children
+  // we'll have to `jill.fetch("children")` again, or we can manufacture the `url`
+  children.url = "/person/" + jill.id + "/children"
+  children.fetch() // calls populate action on the server
+
+})
+```
+
+It is worth bearing in mind that `fetch()` normally resolves with `(response, statusCode, xhr)`. The overloaded `fetch(attr, options)` will resolve with `(instance, response, statusCode, xhr)`, where instance is either an associated model or collection.

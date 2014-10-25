@@ -1,4 +1,4 @@
-#### Syncing with Models
+### Syncing
 
 Whilst ordinary Backbone models work pretty well with a Sails backend, they don't delegate to persisting over sockets. Persisting over sockets is generally much quicker and also subscribes the client to server side changes on the record persised. `Backbone.Sails.Model`, will, with the default configuration, persist over sockets, if available.
 
@@ -36,7 +36,7 @@ messages.fetch().then(function(){
 });
 ```
 
-Fetching over ajax, however, doesn't subscribe the client to server side changes on the records fetched. Backbone.Sails (by default) will 'fire back' a socket request to subscribe the records fetched over ajax.
+Fetching over ajax, however, doesn't subscribe the client to server side changes on the records fetched. Backbone.Sails (by default) will send another socket request, when the socket connects, to subscribe the records initially fetched over ajax.
 
 ```javascript
 messages.fetch().then(function() {
@@ -51,49 +51,56 @@ messages.fetch().then(function() {
 })
 ```
 
-When the socket 'fires back', if there has been any change to the record since the ajax request resolved, these changes (by default) will be `set` on your model. So be prepared to handle the `change` events if you want to update your user interface to the updated state of the record.
+When the implementation sends the socket request, it will receive the same response from the ajax request, however, with the updated state of the records. Backbone.Sails provides an option to update the models with this updated state, if so desired.
 
-This behaviour (understandably) may not be desired. If you don't want `set` to be called when the request 'fires back' over the socket, you can pass the configuration option `fireback: false`:
+#### Configuring Sync
+
+The `sync` option is used to configure how Backbone.Sails model & collections classes sync with the server. The `sync` option is a space delimited string, or an array, of flags telling Backbone.Sails how to behave. It can be set at all levels configuration. At the global level, constructor (or class) level, instance & request level.
+
+The `sync` option looks for the following strings: `ajax`, `socket`, `subscribe` & `set`. They are fairly self-explanatory given the above text.
+
+If `ajax` is present, the implementation will sync over ajax. More precisely, it'll delegate to *whatever sync function is found on the model*. This is usually just the default `Backbone.sync`, however, you can change it as you will, giving you complete control.
+
+If `socket` is present, the implementation will wait for the socket to connect, before syncing over sockets.
+
+If both `ajax` and `socket` are present, the implementation will sync over socket's if available, delegating to ajax if not.
+
+If `ajax`, `socket` and `subscribe` are present, the implementation re-send ajax delegated requests over sockets, to ensure subscription as soon as possible.
+
+If `ajax`, `socket`, `subscribe` and `set` are present, the implementation will `set()` the models to the updated state of the record, when the socket-subscription requests respond.
+
+#### Subscription
+
+Those familiar with the standard Sails blueprints will know that they subscribe to pretty much everything touched on the server side - including models sent, received, populated... everything. This is no doubt to satisfy the many clientside libraries integrating with the backend. However, Backbone.Sails adopts the philosophy that *only records returned in server responses will be subscribed*. This includes populated records and any *new* records created via the `add` blueprint action (since that comes back via a header regardless of the populate option).
+
+By it's very nature, this should be of little concern to you for the most part. Where it may be relevant, is when you are creating models purely from i.d. string's returned in the response (an associated model, say):
 
 ```javascript
-Backbone.Sails.connected(); // false
-
-// will only `set` on the first (ajax) request
-user.fetch({ fireback: false });
-```
-
-The `fireback` option can be set at the *request* level, the *instance* level, the *constructor* level, or the *global* level:
-
-You may not want to use socket's at all. You can configure the `sync` option to indicate to Backbone.Sails what strategy you'd like to take. The `sync` option looks for the strings `"socket"` or `"ajax"` or both. The `sync` option can be set at the *request* level, the *instance* level, the *constructor* level, or the *global* level:
-
-```javascript
-// configure `sync` at the *global* level
-Backbone.Sails.configure({ sync: "socket" });
-
-var User = Backbone.Sails.Model.extend({
-  // a config object is used to configure at the *constructor* level
-  config: {
-    sync: "socket ajax"
-  }
+jack = new Person({ spouse: { name: "Jane" } })
+jack.save().done(function(){ // will respond will Jane's id as `spouse` attribute
+  jane = new Person({ id: jack.get("spouse") })
+  
+  // jane is not currently subscribed, since she wasn't populated in the POST request
 })
-
-// pass in the `options` object to configure at the *instance* level
-var user = new User({ fName: "Bob" }, { sync: ['ajax'] })
-
-// pass in the `options` object to configure at the *request* level
-user.fetch({ sync: ['socket'] })
 ```
 
-Ajax requests will resolve or reject pretty quickly, depending in the server response. However, socket *only* requests will wait for the socket to become available before attempting to make the request. By default, a socket request will timeout after 5 seconds, rejecting the promise returned. You can change this by configuring the `timeout` option:
+This would be much better anyhow:
 
 ```javascript
-Backbone.Sails.configure({
-  timeout: 2000 // after two seconds
-});
+jack = new Person({ spouse: { name: "Jane" } })
+jack.populate("spouse").save().done(function(){ // Jane is populated, she is subscribed
+
+  jane = jack.get("spouse", true);
+  
+  // jane is subscribed, we can listen for comet events
+  jane.on("updated:spouse", function(){
+    beginLegalCustodyProceedings()
+  })
+})
 ```
 
-The `timeout` option can only be configured at the *global* level. You can set it to `false` to wait indefinitely for the socket to connect before resolving socket-only requests. Bare in mind, this will also queue up 'fire-back' socket requests, which also depend on the timeout to reject. Whatever strategy you choose, you should always be prepared to handle a rejected promise, as the server may reject the request in any case.
+#### Timeout
 
-```javascript
-data.save({}, { sync: 'socket' }); // may timeout and reject after 2 seconds
-```
+There is a global configuration option `timeout`, which can be set to tell the implementation how long to wait for a socket connection (in milliseconds), before rejecting a request. By default it is `false`, indicating to never give up - this mean's purely socket based requests (no ajax delegation) will wait indefinitely for a socket connection before resolving or rejecting - and potentially dangerous behaviour.
+
+By setting `timeout` to a numeric value (2000 = two seconds), your requests to `fetch()`, `save()` etc, may reject on the basis that the request timed out (again - if there is no ajax delegation). If these methods do reject because of the request timing out, the promise will reject with `(timeout, method, instance, options)`.
