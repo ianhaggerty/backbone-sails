@@ -13,6 +13,7 @@ ExamplesApp.module "ChatClientApp.Message.Create", (Create) ->
         clientside, we'll let the messages collection pick up the 'created' event and
         then hand off to the collection view.
         ###
-        message.save()
+        message.populate("user").save().then ->
+          Create.trigger "new:message", message
 
       ExamplesApp.mainRegion.currentView.createMessageRegion.show createMessageView

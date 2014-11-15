@@ -11,9 +11,8 @@ Consider the following model:
 module.exports = {
   attributes: {
     name: "string",
-    parents: {
-      model: 'Person',
-      via: "children"
+    spouse: {
+      model: 'Person'
     }
     children: {
       collection: 'Person',
@@ -30,7 +29,7 @@ We would create the corresponding client side model:
 Person = Backbone.Sails.Model.extend({
   modelName: "person",
   assoc: {
-    parents: function(){ return PersonCollection; },
+    spouse: function(){ return Person; },
     children: function(){ return PersonCollection; }
   }
 })
@@ -45,7 +44,7 @@ Since the model/collection's are so simple, we could also declare the associatio
 Person = Backbone.Sails.Model.extend({
   modelName: "person",
   assoc: {
-    spouse: ["person"],
+    spouse: "person",
     children: ["person"]
   }
 })
@@ -94,7 +93,7 @@ john.save().done(function(){
       children = john.get("children", true);
       
       // we can then find jack
-      jack = john.findWhere({ name: "Jack" })
+      jack = children.findWhere({ name: "Jack" })
       
       // and remove him, for example
       john.removeFrom('children', jack);

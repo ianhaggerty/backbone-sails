@@ -98,6 +98,8 @@ Backbone.Sails depends on
 * [lodash](https://lodash.com/)
 * [sails.io](https://github.com/balderdashy/sails.io.js)
 
+You'll also need to `npm install async --save` and `npm install lodash --save` for the server side blueprints.
+
 #### Integration
 
 **On the client**, include `backbone.sails.js` after it's dependencies have been included. `Backbone.Sails` should be available thereafter.
@@ -106,4 +108,15 @@ Backbone.Sails depends on
 
 #### Documentation/Learning
 
-I am in the process of writing the docs. For now, you can get a good idea of what Backbone.Sails is capable of by looking at the [test code](https://github.com/iahag001/Backbone.Sails/blob/master/assets/tests/backbone.sails.spec.coffee).
+The documentation which is up to date (though in need of a little polish) with the 0.1 release is
+
+* The [`Backbone.Sails.Model` reference](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/reference/Backbone.Sails.Model.md) (a good place to poke around).
+* the [populating tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Populating.md)
+* the [syncing tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Syncing.md)
+* and the [adding and removing tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Adding-Removing.md)
+
+I am beginning to write documentation for the blueprints and configuration.
+
+There is also an example chat client application that can be found [here](https://github.com/oscarhaggerty/Backbone.Sails/tree/master/assets/js/examples/apps/chatclient) that was developed with Backbone.Marionette in coffeescript.
+
+You can get also get a good idea of what Backbone.Sails is capable of by looking at the [test code](https://github.com/iahag001/Backbone.Sails/blob/master/assets/tests/backbone.sails.spec.coffee), which now amasses ~ 1500 lines.

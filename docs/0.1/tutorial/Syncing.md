@@ -7,7 +7,7 @@ An important difference between using Backbone models and Backbone.Sails models 
 ```javascript
 var User = Backbone.Sails.Model.extend({
   // this is the same model identifier used server side
-  // is is case insensitive
+  // it is case insensitive
   modelName: "user" 
   
   // no `urlRoot` necessary
@@ -65,7 +65,7 @@ If `socket` is present, the implementation will wait for the socket to connect, 
 
 If both `ajax` and `socket` are present, the implementation will sync over socket's if available, delegating to ajax if not.
 
-If `ajax`, `socket` and `subscribe` are present, the implementation re-send ajax delegated requests over sockets, to ensure subscription as soon as possible.
+If `ajax`, `socket` and `subscribe` are present, the implementation will re-send ajax delegated requests over sockets, to ensure subscription as soon as possible.
 
 If `ajax`, `socket`, `subscribe` and `set` are present, the implementation will `set()` the models to the updated state of the record, when the socket-subscription requests respond.
 
@@ -101,6 +101,6 @@ jack.populate("spouse").save().done(function(){ // Jane is populated, she is sub
 
 #### Timeout
 
-There is a global configuration option `timeout`, which can be set to tell the implementation how long to wait for a socket connection (in milliseconds), before rejecting a request. By default it is `false`, indicating to never give up - this mean's purely socket based requests (no ajax delegation) will wait indefinitely for a socket connection before resolving or rejecting - and potentially dangerous behaviour.
+There is a global configuration option `timeout`, which can be set to tell the implementation how long to wait for a socket connection (in milliseconds), before rejecting a request. By default it is `false`, indicating to never give up - this mean's purely socket based requests (no ajax delegation) will wait indefinitely for a socket connection before resolving or rejecting - a potentially dangerous behaviour.
 
 By setting `timeout` to a numeric value (2000 = two seconds), your requests to `fetch()`, `save()` etc, may reject on the basis that the request timed out (again - if there is no ajax delegation). If these methods do reject because of the request timing out, the promise will reject with `(timeout, method, instance, options)`.
