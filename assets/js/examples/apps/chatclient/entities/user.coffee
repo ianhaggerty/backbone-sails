@@ -4,5 +4,4 @@ ExamplesApp.module "ChatClientApp.Entities", (Entities) ->
     modelName: "chatclientuser"
 
   Entities.UserCollection = Backbone.Sails.Collection.extend
-    modelName: "chatclientuser"
-
+    model: Entities.User

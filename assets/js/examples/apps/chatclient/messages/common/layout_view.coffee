@@ -4,4 +4,3 @@ ExamplesApp.module "ChatClientApp.Message", (Message) ->
     regions:
       messagesRegion: "#messages-region"
       createMessageRegion: "#create-message-region"
-

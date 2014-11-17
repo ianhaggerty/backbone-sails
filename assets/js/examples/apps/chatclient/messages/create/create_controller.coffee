@@ -9,9 +9,8 @@ ExamplesApp.module "ChatClientApp.Message.Create", (Create) ->
         message = new ExamplesApp.ChatClientApp.Entities.Message data
 
         ###
-        We'll save the message to the server here. Instead of emitting a 'message created'
-        clientside, we'll let the messages collection pick up the 'created' event and
-        then hand off to the collection view.
+        We'll save the message to the server here. This will trigger 'created' events on
+        subscribed collection instances.
         ###
         message.populate("user").save().then ->
           Create.trigger "new:message", message
