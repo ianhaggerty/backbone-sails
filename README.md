@@ -106,6 +106,18 @@ You'll also need to `npm install async --save` and `npm install lodash --save` f
 
 **On the server**, copy/paste the blueprints folder to `api/blueprints`. The blueprints are backwards compatible with the original sails blueprints.
 
+Whilst you are familiarizing yourself with the API, I suggest setting the following blueprint options within `config/blueprints.js`:
+
+* `mirror` : `true`
+  
+  `mirror` return's socket event's back to the client they originated from - utterly crucial for testing/learning and DRY'ing up your front end.
+* `populate` : `false`
+  
+  `populate` is a sails config option indicating to just populate everything. Generally, when working with Backbone.Sails, the criteria for `populate` is shifted to the front end. So setting to `false` is a sensible default.
+* `autowatch` : `true`
+  
+  `autowatch` is a flag to the `find` blueprint indicating to subscribe the client to `created` events. A good default is true, whilst your learning. (There is also a configuration option to dynamically flag this on or off from the client with Backbone.Sails)
+
 #### Documentation/Learning
 
 The documentation which is up to date (though in need of a little polish) with the 0.1 release is
