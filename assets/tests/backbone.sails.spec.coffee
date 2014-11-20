@@ -5,6 +5,7 @@ Sails.configure
   promise: (promise)-> Promise.resolve(promise)
   poll: 500
   log: true
+  prefix: '/api'
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 60000
 
@@ -410,14 +411,14 @@ describe "Model", ->
     it "should register the correct url from the modelName", ->
       m = new Model id: "123"
       expect(m.isNew()).not.toBeTruthy()
-      expect(m.url()).toEqual('/test/123')
+      expect(m.url()).toEqual("#{Sails.config.prefix}/test/123")
 
     it "should override the urlRoot", ->
       M = Model.extend modelName: "user", urlRoot: "/false"
       m = new M id: "123"
       expect(m.isNew()).not.toBeTruthy()
-      expect(m.url()).toEqual('/user/123')
-      expect(m.urlRoot()).toEqual('/user')
+      expect(m.url()).toEqual("#{Sails.config.prefix}/user/123")
+      expect(m.urlRoot()).toEqual("#{Sails.config.prefix}/user")
 
     it "should parse the populate config option from the prototype", (done)->
       name = "Ian"

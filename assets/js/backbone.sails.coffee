@@ -19,6 +19,7 @@
     client: -> io.socket    # where the socket client *should* be found
     promise: (promise)-> promise # wraps jQuery promises e.g. (p)-> Q(p); for Q promises
     log: true               # simple boolean to indicate whether to log socket requests or not
+    state: 'client'         # a special collection configuration option indicating how `message` bahaves
 
   keys =
     modelConfig: ['populate', 'sync']
@@ -845,7 +846,14 @@
 
     constructor: (models, options)->
       if !@modelName?
-        modelNameError()
+        # try to get from `model`
+        model = new (@model)()
+        if modelName = model.modelName
+          @modelName = modelName
+        else if models?.length && modelName = model[0].modelName
+          @modelname = modelName
+        else
+          modelNameError()
 
       @url = -> "#{Sails.config.prefix}/#{getModelName(@)}"
 

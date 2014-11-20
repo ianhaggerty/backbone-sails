@@ -85,7 +85,7 @@ module.exports.blueprints =
   `sails.config.routes`)
   ###
 
-  prefix: '',
+  prefix: '/api',
 
   ###
   Whether to pluralize controller names in blueprint routes.

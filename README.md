@@ -98,37 +98,49 @@ Backbone.Sails depends on
 * [lodash](https://lodash.com/)
 * [sails.io](https://github.com/balderdashy/sails.io.js)
 
-You'll also need to `npm install async --save` and `npm install lodash --save` for the server side blueprints.
+You'll also need to run
+
+* `npm install async --save`
+* `npm install lodash --save`
+
+for the server side blueprints.
 
 #### Integration
 
-**On the client**, include `backbone.sails.js` after it's dependencies have been included. `Backbone.Sails` should be available thereafter.
+* **On The Client**
+  
+  Include `backbone.sails.js` after it's dependencies have been included. `Backbone.Sails` should be available thereafter.
 
-**On the server**, copy/paste the blueprints folder to `api/blueprints`. The blueprints are backwards compatible with the original sails blueprints.
+* **On The Server**
+  
+  Copy/paste the blueprints folder to `api/blueprints`. The blueprints are backwards compatible with the original sails blueprints.
+
+#### Configuration
 
 Whilst you are familiarizing yourself with the API, I suggest setting the following blueprint options within `config/blueprints.js`:
 
-* `mirror` : `true`
+* `mirror: true`
   
-  `mirror` return's socket event's back to the client they originated from - utterly crucial for testing/learning and DRY'ing up your front end.
-* `populate` : `false`
+  `mirror` return's socket event's back to the client they originated from - **utterly crucial** for testing/learning and DRY'ing up your front end.
+  
+* `populate: false`
   
   `populate` is a sails config option indicating to just populate everything. Generally, when working with Backbone.Sails, the criteria for `populate` is shifted to the front end. So setting to `false` is a sensible default.
-* `autowatch` : `true`
+  
+* `autowatch: true`
   
   `autowatch` is a flag to the `find` blueprint indicating to subscribe the client to `created` events. A good default is true, whilst your learning. (There is also a configuration option to dynamically flag this on or off from the client with Backbone.Sails)
 
 #### Documentation/Learning
 
-The documentation which is up to date (though in need of a little polish) with the 0.1 release is
+The documentation currently available is:
 
-* The [`Backbone.Sails.Model` reference](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/reference/Backbone.Sails.Model.md) (a good place to poke around).
-* the [populating tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Populating.md)
-* the [syncing tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Syncing.md)
-* and the [adding and removing tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Adding-Removing.md)
-
-I am beginning to write documentation for the blueprints and configuration.
+* [`Backbone.Sails.Model` reference](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/reference/Backbone.Sails.Model.md)
+* [`Backbone.Sails.Collection` reference](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/reference/Backbone.Sails.Collection.md)
+* [Populating Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Populating.md)
+* [Syncing Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Syncing.md)
+* [Adding And Removing Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Adding-Removing.md)
 
 There is also an example chat client application that can be found [here](https://github.com/oscarhaggerty/Backbone.Sails/tree/master/assets/js/examples/apps/chatclient) that was developed with Backbone.Marionette in coffeescript.
 
-You can get also get a good idea of what Backbone.Sails is capable of by looking at the [test code](https://github.com/iahag001/Backbone.Sails/blob/master/assets/tests/backbone.sails.spec.coffee), which now amasses ~ 1500 lines.
+You can also get a good idea of what Backbone.Sails is capable of by looking at the [test code](https://github.com/iahag001/Backbone.Sails/blob/master/assets/tests/backbone.sails.spec.coffee).
