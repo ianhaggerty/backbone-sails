@@ -26,7 +26,8 @@
       promise: function(promise) {
         return promise;
       },
-      log: true
+      log: true,
+      state: 'client'
     };
     keys = {
       modelConfig: ['populate', 'sync'],
@@ -729,12 +730,15 @@
         }
       };
 
-      Model.prototype.subscribe = function() {
+      Model.prototype.subscribe = function(options) {
         var aggregator, modelName, prefix, self;
+        if (options == null) {
+          options = {};
+        }
         if (this.isNew()) {
           self = this;
           this.once("change:" + this.idAttribute, function() {
-            return self.subscribe();
+            return self.subscribe(options);
           });
           return false;
         }
@@ -744,7 +748,7 @@
         this.subscribed = true;
         modelName = getModelName(this);
         register(modelName, this.id);
-        prefix = Sails.config.eventPrefix;
+        prefix = getConfig('eventPrefix', options, this);
         aggregator = Sails.Models[modelName][this.id];
         this.listenTo(aggregator, "addedTo", function(e) {
           this.trigger("" + prefix + "addedTo", this, e);
@@ -797,7 +801,7 @@
         this.urlRoot = function() {
           return "" + Sails.config.prefix + "/" + (getModelName(this));
         };
-        this.subscribe();
+        this.subscribe(options);
         if (options != null) {
           _ref1 = keys.modelConfig;
           for (_i = 0, _len = _ref1.length; _i < _len; _i++) {
@@ -924,15 +928,18 @@
         return promise.wrap(result, internal);
       };
 
-      Collection.prototype.subscribe = function() {
+      Collection.prototype.subscribe = function(options) {
         var aggregator, modelName, prefix;
+        if (options == null) {
+          options = {};
+        }
         if (this.subscribed) {
           return;
         }
         this.subscribed = true;
         modelName = getModelName(this);
         register(modelName);
-        prefix = Sails.config.eventPrefix;
+        prefix = getConfig('eventPrefix', options, this);
         aggregator = Sails.Models[modelName];
         return this.listenTo(aggregator, "created", function(e) {
           return this.trigger("" + prefix + "created", e.data, e);
@@ -940,14 +947,21 @@
       };
 
       function Collection(models, options) {
-        var key, _i, _len, _ref;
+        var key, model, modelName, _i, _len, _ref;
         if (this.modelName == null) {
-          modelNameError();
+          model = new this.model();
+          if (modelName = model.modelName) {
+            this.modelName = modelName;
+          } else if ((models != null ? models.length : void 0) && (modelName = model[0].modelName)) {
+            this.modelname = modelName;
+          } else {
+            modelNameError();
+          }
         }
         this.url = function() {
           return "" + Sails.config.prefix + "/" + (getModelName(this));
         };
-        this.subscribe();
+        this.subscribe(options);
         if (options != null) {
           _ref = keys.collectionConfig;
           for (_i = 0, _len = _ref.length; _i < _len; _i++) {

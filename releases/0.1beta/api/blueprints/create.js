@@ -2,7 +2,7 @@
 (function() {
   var actionUtil, async;
 
-  actionUtil = require('./../../../../api/blueprints/helpers/actionUtil');
+  actionUtil = require('./helpers/actionUtil');
 
   async = require("async");
 

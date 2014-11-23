@@ -2,7 +2,7 @@
 (function() {
   var actionUtil;
 
-  actionUtil = require('./../../../../api/blueprints/helpers/actionUtil');
+  actionUtil = require('./helpers/actionUtil');
 
   module.exports = function(req, res) {
     var Model, pk;

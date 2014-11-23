@@ -2,7 +2,7 @@
 (function() {
   var actionUtil;
 
-  actionUtil = require('./../../../../api/blueprints/helpers/actionUtil');
+  actionUtil = require('./helpers/actionUtil');
 
   module.exports = function(req, res) {
     var Model, childPk, parentPk, relation, where, _base, _base1;

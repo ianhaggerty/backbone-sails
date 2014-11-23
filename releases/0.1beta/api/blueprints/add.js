@@ -2,7 +2,7 @@
 (function() {
   var actionUtil, async, _;
 
-  actionUtil = require('./../../../../api/blueprints/helpers/actionUtil');
+  actionUtil = require('./helpers/actionUtil');
 
   _ = require('lodash');
 
