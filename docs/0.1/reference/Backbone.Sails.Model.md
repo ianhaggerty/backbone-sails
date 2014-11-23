@@ -629,7 +629,7 @@ Events are where the magic happens. Many server-originated [resourceful pub/sub 
   * `data` The data object passed along with the message.
   * `socketEvent` The original socket event as documented [here](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/message.html).#
  
- * ### `"customEvent"`
+* ### `"customEvent"`
  
   Triggered on your model when the resource it refers to is [messaged](http://sailsjs.org/#/documentation/reference/websockets/resourceful-pubsub/message.html). This event fires when you pass a `customEvent` string into the `message` method.
   

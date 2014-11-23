@@ -666,10 +666,10 @@
 
         promise.wrap result, internal
 
-    subscribe: ->
+    subscribe: (options = {})->
       if @isNew()
         self = @
-        @once "change:#{@idAttribute}", -> self.subscribe()
+        @once "change:#{@idAttribute}", -> self.subscribe(options)
         return false
 
       if @subscribed
@@ -683,7 +683,7 @@
       register modelName, @id
 
       # then listen
-      prefix = Sails.config.eventPrefix
+      prefix = getConfig 'eventPrefix', options, @
       aggregator = Sails.Models[modelName][@id]
 
       @listenTo aggregator, "addedTo", (e)->
@@ -727,7 +727,7 @@
       @urlRoot = -> "#{Sails.config.prefix}/#{getModelName(@)}"
 
       # subscribe on create
-      @subscribe()
+      @subscribe(options)
 
       # copy instance config options
       if options?
@@ -826,7 +826,7 @@
 
       promise.wrap result, internal
 
-    subscribe: ->
+    subscribe: (options = {})->
       if @subscribed
         return
 
@@ -838,7 +838,7 @@
       register modelName
 
       # then listen
-      prefix = Sails.config.eventPrefix
+      prefix = getConfig 'eventPrefix', options, @
       aggregator = Sails.Models[modelName]
 
       @listenTo aggregator, "created", (e) ->
@@ -858,7 +858,7 @@
       @url = -> "#{Sails.config.prefix}/#{getModelName(@)}"
 
       # subscribe on create
-      @subscribe()
+      @subscribe(options)
 
       # copy instance config options
       if options?

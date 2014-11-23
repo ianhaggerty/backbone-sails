@@ -59,7 +59,7 @@ The `sync` option is used to configure how Backbone.Sails model & collections cl
 
 The `sync` option looks for the following strings: `ajax`, `socket`, `subscribe` & `set`. They are fairly self-explanatory given the above text.
 
-If `ajax` is present, the implementation will sync over ajax. More precisely, it'll delegate to *whatever sync function is found on the model*. This is usually just the default `Backbone.sync`, however, you can change it as you will, giving you complete control.
+If `ajax` is present, the implementation will sync over ajax. More precisely, it'll delegate to *whatever sync function is found on the instance*. This is usually just the default `Backbone.sync`, however, you can change it as you will, giving you complete control.
 
 If `socket` is present, the implementation will wait for the socket to connect, before syncing over sockets.
 
