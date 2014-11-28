@@ -2,6 +2,50 @@
 
 ***
 
+* ### [Configuration Levels](#configuration-levels-1)
+
+  * ### [Global Level](#global-level)
+
+  * ### [Constructor Level](#constructor-or-class-level)
+  
+  * ### [Instance Level](#instance-level-1)
+  
+  * ### [Request Level](#request-level-1)
+  
+* ### [Configuration Options](#configuration-options-1)
+
+  * ### [`eventPrefix`](#eventprefix-1)
+  
+  * ### [`populate`](#populate-1)
+  
+  * ### [`where`](#where-1)
+  
+  * ### [`limit`](#limit-1)
+  
+  * ### [`skip`](#skip-1)
+  
+  * ### [`sort`](#sort-1)
+  
+  * ### [`watch`](#watch-1)
+  
+  * ### [`prefix`](#prefix)
+  
+  * ### [`sync`](#sync-1)
+  
+  * ### [`timeout`](#timeout-1)
+  
+  * ### [`poll`](#poll-1)
+  
+  * ### [`client`](#client-1)
+  
+  * ### [`promise`](#promise-1)
+  
+  * ### [`log`](#log-1)
+  
+  * ### [`state`](#state-1)
+  
+***
+
 ## Configuration Levels
 
 Backbone.Sails has a number of additional configuration options. Some of the configuration options can be 'inherited', in that, there are four 'levels' at which configuration options can be set:
@@ -71,9 +115,9 @@ coll.fetch({
 })
 ```
 
-## Configuration Option's
+## Configuration Options
 
-All the additional Backbone.Sails configuration option's are referenced here.
+All the Backbone.Sails configuration options are referenced here.
 
 _The **@level** tag indicates the levels at which the option can be set._
 
@@ -350,6 +394,6 @@ _The **@level** tag indicates the levels at which the option can be set._
                   
   **@default** `"client"`
   
-  **@level** *global*
+  **@level** *global | constructor | instance | request*
   
   This is a special boolean indicating how the `message` method should behave on a collection. It configures which `state` of the collection to `message`. If the `state` is `"client"`, it will message all models currently residing in the client side `state` of the collection. If the `state` is `"server"`, it will message all models that would be returned within the next `fetch` request (as configured via the filter criteria `where`, `limit`, `sort`, `skip`).
