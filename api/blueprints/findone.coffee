@@ -21,4 +21,3 @@ module.exports = (req, res)->
     record = actionUtil.populateNull(record, req)
 
     res.ok record
-

@@ -1,47 +1,52 @@
 {
-    "name": "Backbone.Sails",
-    "version": "0.1.0",
-    "description": "A frontend plugin for integrating backbone with sails.",
-    "keywords": ["sails", "backbone"],
-    "scripts": {
-        "start": "sails lift",
-        "debug": "node-debug app.js",
-        "db":   "mongod --dbpath .data"
-    },
-    "main": "app.js",
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/iahag001/Backbone.Sails"
-    },
-    "author": "Ian Haggerty",
-    "dependencies": {
-        "async": "^0.9.0",
-        "bcrypt": "^0.8.0",
-        "coffee-script": "^1.8.0",
-        "cron": "^1.0.4",
-        "lodash": "^2.4.1",
-        "passport": "^0.2.1",
-        "passport-local": "^1.0.0",
-        "q": "^1.0.1",
-        "sails": "^0.10.5",
-        "sails-mongo": "^0.10.4",
-        "time": "^0.11.0"
-    },
-    "devDependencies": {
-        "ejs": "^0.8.8",
-        "grunt": "^0.4.2",
-        "grunt-concurrent": "^0.5.0",
-        "grunt-contrib-clean": "^0.5.0",
-        "grunt-contrib-coffee": "^0.10.1",
-        "grunt-contrib-compass": "^0.9.1",
-        "grunt-contrib-concat": "^0.3.0",
-        "grunt-contrib-copy": "^0.5.0",
-        "grunt-contrib-cssmin": "^0.9.0",
-        "grunt-contrib-jst": "^0.6.0",
-        "grunt-contrib-uglify": "^0.4.1",
-        "grunt-contrib-watch": "^0.5.3",
-        "grunt-sails-linker": "^0.9.5",
-        "grunt-sync": "0.0.8",
-        "sails-disk": "^0.10.3"
-    }
+  "name": "Backbone.Sails",
+  "version": "0.1.0",
+  "description": "A frontend plugin for integrating backbone with sails.",
+  "keywords": [
+    "sails",
+    "backbone"
+  ],
+  "scripts": {
+    "start": "sails lift",
+    "debug": "node-debug app.js",
+    "db": "mongod --dbpath .data"
+  },
+  "main": "app.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iahag001/Backbone.Sails"
+  },
+  "author": "Ian Haggerty",
+  "dependencies": {
+    "async": "^0.9.0",
+    "bcrypt": "^0.8.0",
+    "bluebird": "^2.6.2",
+    "coffee-script": "^1.8.0",
+    "cron": "^1.0.4",
+    "grunt-contrib-compress": "^0.13.0",
+    "lodash": "^2.4.1",
+    "passport": "^0.2.1",
+    "passport-local": "^1.0.0",
+    "q": "^1.0.1",
+    "sails": "^0.10.5",
+    "sails-mongo": "^0.10.4",
+    "time": "^0.11.0"
+  },
+  "devDependencies": {
+    "ejs": "^0.8.8",
+    "grunt": "^0.4.2",
+    "grunt-concurrent": "^0.5.0",
+    "grunt-contrib-clean": "^0.5.0",
+    "grunt-contrib-coffee": "^0.10.1",
+    "grunt-contrib-compass": "^0.9.1",
+    "grunt-contrib-concat": "^0.3.0",
+    "grunt-contrib-copy": "^0.5.0",
+    "grunt-contrib-cssmin": "^0.9.0",
+    "grunt-contrib-jst": "^0.6.0",
+    "grunt-contrib-uglify": "^0.4.1",
+    "grunt-contrib-watch": "^0.5.3",
+    "grunt-sails-linker": "^0.9.5",
+    "grunt-sync": "0.0.8",
+    "sails-disk": "^0.10.3"
+  }
 }

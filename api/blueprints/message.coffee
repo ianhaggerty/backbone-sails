@@ -9,13 +9,14 @@ module.exports = (req, res)->
   Model = actionUtil.parseModel(req)
 
   query = Model.find()
-  .where( actionUtil.parseCriteria(req) )
-  .limit( actionUtil.parseLimit(req) )
-  .skip( actionUtil.parseSkip(req) )
-  .sort( actionUtil.parseSort(req) )
+  .where(actionUtil.parseCriteria(req))
+  .limit(actionUtil.parseLimit(req))
+  .skip(actionUtil.parseSkip(req))
+  .sort(actionUtil.parseSort(req))
 
   query.exec (err, records)->
-    if (err) then return res.serverError(err)
+    if (err)
+      return res.serverError(err)
 
     if req._sails.hooks.pubsub
       for record in records
