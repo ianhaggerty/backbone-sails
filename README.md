@@ -86,7 +86,7 @@ address.populate({
 
 #### Releases
 
-A [0.1 beta](https://github.com/iahag001/Backbone.Sails/tree/master/releases/0.1beta) release is currently available. Sails 0.10 is required.
+A [0.1](https://github.com/oscarhaggerty/Backbone.Sails/tree/master/releases/0.1) release is currently available. Sails 0.10 is required.
 
 #### Dependencies
 
