@@ -136,7 +136,7 @@ The documentation currently available is:
 * [Configuration reference](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/reference/Configuration.md)
 * [Populating Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Populating.md)
 * [Syncing Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Syncing.md)
-* [Adding And Removing Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Adding-Removing.md)
+* [Adding And Removing Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Adding%20%26%20Removing.md)
 
 There is also an example chat client application that can be found [here](https://github.com/oscarhaggerty/Backbone.Sails/tree/master/assets/js/examples/apps/chatclient) that was developed with Backbone.Marionette in coffeescript.
 
