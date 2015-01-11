@@ -98,12 +98,11 @@ Backbone.Sails depends on
 * [lodash](https://lodash.com/)
 * [sails.io](https://github.com/balderdashy/sails.io.js)
 
-You'll also need to run
+The server side blueprints **depend on lodash and bluebird**, so you'll need to
+run
 
-* `npm install async --save`
+* `npm install bluebird --save`
 * `npm install lodash --save`
-
-for the server side blueprints.
 
 #### Integration
 
@@ -123,10 +122,6 @@ Whilst you are familiarizing yourself with the API, I suggest setting the follow
   
   `mirror` return's socket event's back to the client they originated from - **utterly crucial** for testing/learning and DRY'ing up your front end.
   
-* `populate: false`
-  
-  `populate` is a sails config option indicating to just populate everything. Generally, when working with Backbone.Sails, the criteria for `populate` is shifted to the front end. So setting to `false` is a sensible default.
-  
 * `autowatch: true`
   
   `autowatch` is a flag to the `find` blueprint indicating to subscribe the client to `created` events. A good default is true, whilst your learning. (There is also a configuration option to dynamically flag this on or off from the client with Backbone.Sails)
@@ -137,6 +132,8 @@ The documentation currently available is:
 
 * [`Backbone.Sails.Model` reference](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/reference/Backbone.Sails.Model.md)
 * [`Backbone.Sails.Collection` reference](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/reference/Backbone.Sails.Collection.md)
+* [`Backbone.Sails` reference](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/reference/Backbone.Sails.md)
+* [Configuration reference](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/reference/Configuration.md)
 * [Populating Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Populating.md)
 * [Syncing Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Syncing.md)
 * [Adding And Removing Tutorial](https://github.com/oscarhaggerty/Backbone.Sails/blob/master/docs/0.1/tutorial/Adding-Removing.md)
