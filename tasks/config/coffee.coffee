@@ -7,12 +7,15 @@ module.exports = (grunt) ->
       options:
         bare: true
 
-      files:
-        expand: true
-        cwd: "assets/"
-        src: ["**/*.coffee"]
-        dest: ".tmp/public/"
-        ext: ".js"
+      files: [
+        {
+          expand: true
+          cwd: "assets/"
+          src: ["**/*.coffee"]
+          dest: ".tmp/public/"
+          ext: ".js"
+        }
+      ]
 
     api:
       expand: true,

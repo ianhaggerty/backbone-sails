@@ -4,3 +4,5 @@
 .idea
 _ignoreme
 node_modules
+.db
+.data

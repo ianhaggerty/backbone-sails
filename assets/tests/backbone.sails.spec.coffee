@@ -908,7 +908,7 @@ describe "Model", ->
         spies = undefined
         removeMe = undefined
         m.save().then ->
-          m1 = new Model m.attributes # should subscribe on construct
+          m1 = new Model m.attributes
           spies = getSpies()
           m1.on "removedFrom", spies.a
           m1.on "removedFrom:tests", spies.b
