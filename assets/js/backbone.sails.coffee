@@ -414,6 +414,9 @@
         @[keys.configPrefix + k] = v
     @
 
+  updatedHandle = (m, e) ->
+    m.set e.data
+    
   class Sails.Model extends Backbone.Model
 
     query: configure
@@ -717,6 +720,16 @@
 
       return true
 
+    synchronize: ->
+      if !@synchronized
+        @listenTo @, "updated", updatedHandle
+        @synchronized = true
+
+    desynchronize: ->
+      if @synchronized
+        @stopListening @, "updated", updatedHandle
+        @synchronized = false
+
     constructor: (attrs, options)->
       super
 
@@ -753,6 +766,23 @@
   class FakeModel extends Sails.Model
     modelName: '__fake'
 
+
+  createdHandle = (coll, data, e)->
+    criteria =
+      where: getConfig('where', {}, coll)
+      limit: getConfig('limit', {}, coll)
+      skip: getConfig('skip', {}, coll)
+      sort: getConfig('sort', {}, coll)
+    
+    raw = _.pluck coll.models, 'attributes'
+    raw.push data
+    
+    results = WC(raw, criteria).results
+    coll.set results
+    
+  destroyedHandle = (coll, model, e)->
+    coll.remove model
+    
   class Sails.Collection extends Backbone.Collection
 
     query: configure
@@ -760,6 +790,31 @@
     populate: _.partial configure, 'populate'
 
     model: Sails.Model
+      
+    synchronize: (deep = true)->
+      if deep
+        @forEach (m)->
+          m.synchronize()
+      
+      if !@synchronized
+        @_createdHandle = (data, e)->
+          createdHandle(@, data, e)
+        @_destroyedHandle = (model, e)->
+          destroyedHandle(@, model, e)
+        
+        @listenTo @, "created", @_createdHandle
+        @listenTo @, "destroyed", @_destroyedHandle
+        @synchronized = true
+
+    desynchronize: (deep = true)->
+      if deep
+        @forEach (m)->
+          m.desynchronize()
+      
+      if @synchronized
+        @stopListening @, "created", @_createdHandle
+        @stopListening @, "destroyed", @_destroyedHandle
+        @synchronized = false
 
     message: (namespace, data, options, internal) ->
       coll = this
@@ -841,6 +896,7 @@
       prefix = getConfig 'eventPrefix', options, @
       aggregator = Sails.Models[modelName]
 
+      ## TODO (for later release) emit the collection instance as first parameter
       @listenTo aggregator, "created", (e) ->
         @trigger "#{prefix}created", e.data, e
 
@@ -870,7 +926,7 @@
 
   class FakeCollection extends Sails.Collection
     modelName: '__fake__'
-
+    
   Backbone.Sails = Sails
 
 )(Backbone, $, _)

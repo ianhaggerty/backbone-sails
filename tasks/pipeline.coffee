@@ -8,6 +8,7 @@ jsFilesToInject = [
 	"js/dependencies/jquery.js"
 	"js/dependencies/lodash.js"
 	"js/dependencies/json2.js"
+  "js/dependencies/waterline-criteria.js"
 	"js/dependencies/backbone.js"
 
 	## Backbone.Sails ##

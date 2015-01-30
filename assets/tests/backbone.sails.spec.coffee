@@ -1308,7 +1308,7 @@ describe "Collection", ->
         coll.on "messaged", spies.a
         collection = new Collection()
         collection.query where: name: 'one'
-        collection.message { some: 'data'}, { state: 'server' } # no need to fetch
+        collection.message { some: 'data' }, { state: 'server' } # no need to fetch
       .then ->
         expect(spies.a).toHaveBeenCalled()
         argsArray = spies.a.calls.allArgs()
