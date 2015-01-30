@@ -783,6 +783,9 @@
   destroyedHandle = (coll, model, e)->
     coll.remove model
     
+  addHandle = (model, coll, options)->
+    model.synchronize()
+    
   class Sails.Collection extends Backbone.Collection
 
     query: configure
@@ -804,6 +807,7 @@
         
         @listenTo @, "created", @_createdHandle
         @listenTo @, "destroyed", @_destroyedHandle
+        @listenTo @, "add", addHandle
         @synchronized = true
 
     desynchronize: (deep = true)->
@@ -814,6 +818,7 @@
       if @synchronized
         @stopListening @, "created", @_createdHandle
         @stopListening @, "destroyed", @_destroyedHandle
+        @stopListening @, "add", addHandle
         @synchronized = false
 
     message: (namespace, data, options, internal) ->
