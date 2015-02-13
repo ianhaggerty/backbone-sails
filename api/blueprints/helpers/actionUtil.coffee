@@ -168,7 +168,7 @@ module.exports =
 
       if assoc.type == 'collection' && record[assoc.alias]
         for record in record[assoc.alias]
-          if record[AssociatedModel.primaryKey]?
+          if record?[AssociatedModel.primaryKey]? # record can be null
             AssociatedModel.subscribe req, record
 
       else if assoc.type == 'model' &&
