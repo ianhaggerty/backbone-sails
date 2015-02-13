@@ -19,9 +19,8 @@ module.exports = (grunt) ->
 
     api:
       expand: true,
-      flatten: true,
       cwd: 'api/blueprints',
-      src: ['*.coffee'],
+      src: ['**/*.coffee'],
       dest: 'releases/release/api/blueprints',
       ext: '.js'
 
