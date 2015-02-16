@@ -26,7 +26,7 @@ module.exports = (grunt) ->
 
     asset:
       files:
-        'releases/release/assets/js/backbone.sails.js': 'assets/js/backbone.sails.coffee'
+        'releases/release/assets/js/dependencies/backbone.sails.js': 'assets/js/backbone.sails.coffee'
 
 
   grunt.loadNpmTasks "grunt-contrib-coffee"

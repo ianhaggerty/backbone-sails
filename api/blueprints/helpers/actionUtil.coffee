@@ -160,6 +160,10 @@ module.exports =
   # to all associated models the the `record` currently has populated.
 
   subscribeDeep: (req, record) ->
+    
+    if !record # record can be null
+      return
+    
     _.each req.options.associations, (assoc)->
 
       # identity of associated model

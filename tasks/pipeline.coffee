@@ -4,7 +4,7 @@ cssFilesToInject = [
 
 jsFilesToInject = [
 	## Backbone.Sails dependencies ##
-	"js/dependencies/sails.io.js"
+	"js/dependencies/sails.io_0.9.js"
 	"js/dependencies/jquery.js"
 	"js/dependencies/lodash.js"
 	"js/dependencies/json2.js"

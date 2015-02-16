@@ -86,20 +86,19 @@ address.populate({
 
 #### Releases
 
-A [0.1](https://github.com/oscarhaggerty/Backbone.Sails/tree/master/releases/0.1) release is currently available. Sails 0.10 is required.
+A [0.1](https://github.com/oscarhaggerty/Backbone.Sails/tree/master/releases/0.1) release is currently available. Sails v0.10 is *required* as well as io.sails v0.9.
 
 #### Dependencies
 
 Backbone.Sails depends on 
 
+* [Sails v0.10](http://sailsjs.org/#/) `npm install sails@^0.10`
 * [Backbone](http://backbonejs.org/#)
-* [Sails](http://sailsjs.org/#/) (0.10 or above)
+* [sails.io v0.9](https://github.com/balderdashy/sails.io.js)
 * [jQuery](http://jquery.com/)
 * [lodash](https://lodash.com/)
-* [sails.io](https://github.com/balderdashy/sails.io.js)
 
-The server side blueprints **depend on lodash and bluebird**, so you'll need to
-run
+The server side blueprints **depend on lodash and bluebird**, so you'll need to run
 
 * `npm install bluebird --save`
 * `npm install lodash --save`

@@ -18,5 +18,6 @@ module.exports = (grunt) ->
 				src: ["**/*"]
 				dest: "www"
 			]
+        
 
 	grunt.loadNpmTasks "grunt-contrib-copy"
