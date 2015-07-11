@@ -2,7 +2,7 @@ Backbone.Sails
 ==============
 
 # *This project has now been discontinued*. An \*ES6 re-implementation is currently under development.
-### \* Using [Koa](http://koajs.com/), transpiling to ES5 (see [babel](https://babeljs.io/)) will be necessary
+### \* Using [Koa](http://koajs.com/)
 
 Backbone.Sails is a plugin that aims to leverage to best of a [Sails](http://sailsjs.org/#/) backend within a [Backbone](http://backbonejs.org/#) frontend.
 
