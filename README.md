@@ -141,6 +141,10 @@ There is also an example chat client application that can be found [here](https:
 
 You can also get a good idea of what Backbone.Sails is capable of by looking at the [test code](https://github.com/iahag001/Backbone.Sails/blob/master/assets/tests/backbone.sails.spec.coffee).
 
+## A Note from the Author
+
+Thanks for your interest! Please see my [GitHub](https://github.com/ianhaggerty) or [Linkedin](https://www.linkedin.com/in/ihaggerty/) to stay updated.
+
 ---
 
 The MIT License (MIT)
